@@ -1,0 +1,2294 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feldlabor – Elektrisches Feld</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0a0e1a;
+  color: #e0e8f0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* ===== CSS VARIABLES ===== */
+:root {
+  --cyan: #00e5ff;
+  --cyan-dim: #00a5b8;
+  --yellow: #ffd600;
+  --yellow-dim: #b89a00;
+  --bg-dark: #0a0e1a;
+  --bg-card: #131928;
+  --bg-card-hover: #1a2238;
+  --bg-header: #0d1225;
+  --border: #1e2a45;
+  --text: #e0e8f0;
+  --text-dim: #8899aa;
+  --green: #00e676;
+  --red: #ff5252;
+  --orange: #ffab40;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ===== ANIMATED BACKGROUND ===== */
+#bg-canvas {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 0; pointer-events: none; opacity: 0.15;
+}
+
+/* ===== LAYOUT ===== */
+#app {
+  position: relative; z-index: 1;
+  max-width: 900px; margin: 0 auto; padding: 20px;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+
+/* ===== HEADER ===== */
+.game-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 20px; background: var(--bg-header);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 20px; gap: 12px; flex-wrap: wrap;
+}
+.game-header .phase-label {
+  font-size: 1rem; font-weight: 600; color: var(--cyan);
+}
+.game-header .player-name {
+  font-size: 0.85rem; color: var(--text-dim);
+}
+.game-header .timer {
+  font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 4px 14px; border-radius: 8px; background: rgba(0,229,255,0.1);
+  border: 1px solid var(--cyan-dim); color: var(--cyan);
+  min-width: 70px; text-align: center;
+}
+.game-header .timer.warn { background: rgba(255,171,64,0.15); border-color: var(--orange); color: var(--orange); }
+.game-header .timer.danger { background: rgba(255,82,82,0.15); border-color: var(--red); color: var(--red); animation: pulse 1s infinite; }
+.game-header .score {
+  font-size: 0.95rem; color: var(--yellow);
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ===== PROGRESS BAR ===== */
+.progress-bar {
+  width: 100%; height: 6px; background: var(--border);
+  border-radius: 3px; margin-bottom: 20px; overflow: hidden;
+}
+.progress-bar .fill {
+  height: 100%; background: linear-gradient(90deg, var(--cyan), var(--yellow));
+  border-radius: 3px; transition: width 0.5s ease;
+}
+
+/* ===== SCREENS ===== */
+.screen { display: none; flex-direction: column; flex: 1; }
+.screen.active { display: flex; }
+
+/* ===== START SCREEN ===== */
+.start-screen {
+  justify-content: center; align-items: center; text-align: center;
+  gap: 30px; padding: 40px 20px;
+}
+.start-screen h1 {
+  font-size: 3rem; font-weight: 800;
+  background: linear-gradient(135deg, var(--cyan), var(--yellow));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.start-screen .subtitle {
+  font-size: 1.1rem; color: var(--text-dim); margin-top: -10px;
+}
+.start-screen input {
+  width: 100%; max-width: 350px; padding: 14px 20px;
+  background: var(--bg-card); border: 2px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-size: 1.1rem; text-align: center; outline: none;
+  transition: border-color 0.3s;
+}
+.start-screen input:focus { border-color: var(--cyan); }
+.start-screen input::placeholder { color: var(--text-dim); }
+.start-screen .error-msg {
+  color: var(--red); font-size: 0.85rem; min-height: 1.2em;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 32px; font-size: 1.05rem; font-weight: 600;
+  border: 2px solid transparent; border-radius: var(--radius);
+  cursor: pointer; transition: all 0.25s; outline: none;
+  min-height: 48px; min-width: 48px;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--cyan), #0091ea);
+  color: #000; border-color: var(--cyan);
+}
+.btn-primary:hover, .btn-primary:active {
+  background: linear-gradient(135deg, #33eaff, #00b0ff);
+  transform: translateY(-1px); box-shadow: 0 4px 20px rgba(0,229,255,0.3);
+}
+.btn-secondary {
+  background: transparent; color: var(--cyan); border-color: var(--cyan-dim);
+}
+.btn-secondary:hover { background: rgba(0,229,255,0.1); }
+.btn-small { padding: 8px 18px; font-size: 0.9rem; min-height: 40px; }
+.btn-hint {
+  background: rgba(255,214,0,0.1); color: var(--yellow); border-color: var(--yellow-dim);
+}
+.btn-hint:hover { background: rgba(255,214,0,0.2); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* ===== CARD ===== */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px;
+  box-shadow: var(--shadow); margin-bottom: 16px;
+}
+.card h2 { font-size: 1.2rem; color: var(--cyan); margin-bottom: 12px; }
+.card h3 { font-size: 1rem; color: var(--yellow); margin-bottom: 8px; }
+
+/* ===== QUESTION AREA ===== */
+.question-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+  box-shadow: var(--shadow); transition: border-color 0.4s;
+}
+.question-card.correct { border-color: var(--green); }
+.question-card.wrong { border-color: var(--red); }
+.question-text {
+  font-size: 1.1rem; font-weight: 500; margin-bottom: 20px; line-height: 1.6;
+}
+.question-counter {
+  font-size: 0.85rem; color: var(--text-dim); margin-bottom: 8px;
+}
+
+/* ===== MC OPTIONS ===== */
+.mc-options { display: flex; flex-direction: column; gap: 10px; }
+.mc-option {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px; background: var(--bg-card-hover);
+  border: 2px solid var(--border); border-radius: var(--radius);
+  cursor: pointer; transition: all 0.2s; min-height: 52px;
+  font-size: 1rem; -webkit-tap-highlight-color: transparent;
+}
+.mc-option:hover { border-color: var(--cyan-dim); background: rgba(0,229,255,0.05); }
+.mc-option.selected { border-color: var(--cyan); background: rgba(0,229,255,0.1); }
+.mc-option.correct-answer { border-color: var(--green); background: rgba(0,230,118,0.1); }
+.mc-option.wrong-answer { border-color: var(--red); background: rgba(255,82,82,0.1); }
+.mc-option .letter {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--border); display: flex; align-items: center;
+  justify-content: center; font-weight: 700; font-size: 0.85rem;
+  flex-shrink: 0; transition: all 0.2s;
+}
+.mc-option.selected .letter { background: var(--cyan); color: #000; }
+.mc-option.correct-answer .letter { background: var(--green); color: #000; }
+.mc-option.wrong-answer .letter { background: var(--red); color: #fff; }
+.mc-option.disabled { pointer-events: none; opacity: 0.7; }
+.tf-option.disabled { pointer-events: none; opacity: 0.7; }
+
+/* ===== TRUE/FALSE ===== */
+.tf-options { display: flex; gap: 12px; }
+.tf-option {
+  flex: 1; padding: 16px; text-align: center; font-size: 1.1rem;
+  font-weight: 600; border: 2px solid var(--border); border-radius: var(--radius);
+  cursor: pointer; transition: all 0.2s; background: var(--bg-card-hover);
+  min-height: 52px; -webkit-tap-highlight-color: transparent;
+}
+.tf-option:hover { border-color: var(--cyan-dim); }
+.tf-option.selected { border-color: var(--cyan); background: rgba(0,229,255,0.1); }
+.tf-option.correct-answer { border-color: var(--green); background: rgba(0,230,118,0.1); }
+.tf-option.wrong-answer { border-color: var(--red); background: rgba(255,82,82,0.1); }
+
+/* ===== NUMERIC INPUT ===== */
+.numeric-input-wrap {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.numeric-input {
+  flex: 1; min-width: 150px; padding: 14px 18px;
+  background: var(--bg-card-hover); border: 2px solid var(--border);
+  border-radius: var(--radius); color: var(--text);
+  font-size: 1.15rem; font-family: 'Courier New', monospace;
+  outline: none; transition: border-color 0.3s;
+}
+.numeric-input:focus { border-color: var(--cyan); }
+.numeric-unit {
+  font-size: 1.1rem; color: var(--text-dim); font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ===== DRAG & DROP MATCHING ===== */
+.matching-area {
+  display: flex; flex-direction: column; gap: 20px;
+}
+.matching-targets {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.match-target {
+  min-height: 80px; padding: 12px; border: 2px dashed var(--border);
+  border-radius: var(--radius); text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px; transition: all 0.3s;
+  font-size: 0.9rem; color: var(--text-dim);
+}
+.match-target.drag-over { border-color: var(--cyan); background: rgba(0,229,255,0.05); }
+.match-target.filled { border-style: solid; border-color: var(--cyan-dim); }
+.match-target.correct { border-color: var(--green); background: rgba(0,230,118,0.05); }
+.match-target.wrong { border-color: var(--red); background: rgba(255,82,82,0.05); }
+.matching-items {
+  display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+  padding: 16px; background: var(--bg-card-hover); border-radius: var(--radius);
+  min-height: 60px;
+}
+.match-item {
+  padding: 10px 16px; background: var(--bg-dark);
+  border: 2px solid var(--cyan-dim); border-radius: 8px;
+  cursor: grab; font-size: 0.9rem; font-weight: 500;
+  transition: all 0.2s; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+.match-item:active { cursor: grabbing; transform: scale(1.05); }
+.match-item.dragging { opacity: 0.4; }
+.match-item.placed { opacity: 0.3; pointer-events: none; }
+.match-item.tap-selected {
+  border-color: var(--yellow); background: rgba(255,214,0,0.1);
+  box-shadow: 0 0 12px rgba(255,214,0,0.3);
+}
+
+/* ===== FEEDBACK ===== */
+.feedback {
+  padding: 14px 18px; border-radius: var(--radius);
+  margin-top: 16px; font-size: 0.95rem; line-height: 1.5;
+  display: none;
+}
+.feedback.show { display: block; animation: fadeIn 0.3s ease; }
+.feedback.correct { background: rgba(0,230,118,0.1); border: 1px solid var(--green); color: var(--green); }
+.feedback.wrong { background: rgba(255,82,82,0.1); border: 1px solid var(--red); color: var(--red); }
+.feedback.info { background: rgba(0,229,255,0.1); border: 1px solid var(--cyan); color: var(--cyan); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== ACTION BAR ===== */
+.action-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 20px; gap: 12px; flex-wrap: wrap;
+}
+
+/* ===== PHASE SUMMARY ===== */
+.phase-summary {
+  text-align: center; padding: 30px 20px;
+}
+.phase-summary h2 {
+  font-size: 1.6rem; color: var(--cyan); margin-bottom: 20px;
+}
+.phase-summary .stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px; margin-bottom: 24px;
+}
+.phase-summary .stat {
+  background: var(--bg-card-hover); padding: 16px;
+  border-radius: var(--radius); border: 1px solid var(--border);
+}
+.phase-summary .stat .label { font-size: 0.8rem; color: var(--text-dim); }
+.phase-summary .stat .value { font-size: 1.6rem; font-weight: 700; color: var(--yellow); }
+.phase-summary .motivation {
+  font-size: 1.1rem; color: var(--text); margin-bottom: 24px;
+  font-style: italic;
+}
+
+/* ===== FORMULA CARD OVERLAY ===== */
+.formula-overlay {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+  justify-content: center; align-items: center; padding: 20px;
+}
+.formula-overlay.show { display: flex; }
+.formula-card {
+  background: var(--bg-card); border: 1px solid var(--cyan-dim);
+  border-radius: var(--radius); padding: 28px; max-width: 500px;
+  width: 100%; max-height: 80vh; overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0,229,255,0.15);
+}
+.formula-card h2 { text-align: center; margin-bottom: 16px; }
+.formula-card .formula-item {
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-family: 'Courier New', monospace; font-size: 1.05rem;
+}
+.formula-card .formula-item:last-child { border-bottom: none; }
+.formula-card .formula-label {
+  font-size: 0.8rem; color: var(--text-dim); font-family: 'Segoe UI', sans-serif;
+}
+
+/* ===== FLOATING BUTTONS ===== */
+.floating-btns {
+  position: fixed; bottom: 20px; right: 20px; z-index: 900;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.fab {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; cursor: pointer; border: 2px solid;
+  transition: all 0.25s; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  -webkit-tap-highlight-color: transparent;
+}
+.fab-formula {
+  background: rgba(0,229,255,0.15); border-color: var(--cyan-dim); color: var(--cyan);
+}
+.fab-formula:hover { background: rgba(0,229,255,0.3); transform: scale(1.1); }
+
+/* ===== RESULT SCREEN ===== */
+.result-screen { align-items: center; text-align: center; padding: 30px 20px; }
+.medal {
+  width: 120px; height: 120px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 3.5rem; margin-bottom: 20px;
+  animation: medalPop 0.6s ease;
+}
+@keyframes medalPop {
+  0% { transform: scale(0); } 60% { transform: scale(1.2); } 100% { transform: scale(1); }
+}
+.medal.gold { background: linear-gradient(135deg, #ffd600, #ffab00); border: 3px solid #ffc107; }
+.medal.silver { background: linear-gradient(135deg, #b0bec5, #78909c); border: 3px solid #90a4ae; }
+.medal.bronze { background: linear-gradient(135deg, #d7a86e, #a0522d); border: 3px solid #bc8f5f; }
+.medal.none { background: linear-gradient(135deg, #455a64, #37474f); border: 3px solid #546e7a; }
+.result-total { font-size: 2.2rem; font-weight: 800; color: var(--yellow); }
+.result-breakdown {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px; width: 100%; max-width: 700px; margin: 20px 0;
+}
+.profile-section { margin: 20px 0; width: 100%; max-width: 600px; }
+.profile-section h3 { margin-bottom: 12px; }
+.strength { color: var(--green); }
+.weakness { color: var(--orange); }
+
+/* ===== TEACHER MODE ===== */
+.teacher-overlay {
+  display: none; position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(6px);
+  justify-content: center; align-items: flex-start;
+  padding: 20px; overflow-y: auto;
+}
+.teacher-overlay.show { display: flex; }
+.teacher-panel {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px; max-width: 800px;
+  width: 100%; margin: 20px auto; box-shadow: var(--shadow);
+}
+.teacher-panel h2 { color: var(--yellow); margin-bottom: 16px; }
+.teacher-tabs {
+  display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.teacher-tab {
+  padding: 10px 20px; background: var(--bg-card-hover);
+  border: 1px solid var(--border); border-radius: 8px;
+  cursor: pointer; font-size: 0.9rem; color: var(--text-dim);
+  transition: all 0.2s;
+}
+.teacher-tab.active { border-color: var(--yellow); color: var(--yellow); background: rgba(255,214,0,0.1); }
+.teacher-content { min-height: 200px; }
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--border); gap: 16px;
+  flex-wrap: wrap;
+}
+.settings-row label { font-size: 0.95rem; flex-shrink: 0; }
+.settings-row input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--cyan); }
+.settings-row .range-value { min-width: 50px; text-align: right; color: var(--cyan); font-weight: 600; }
+.toggle-switch {
+  width: 50px; height: 28px; background: var(--border);
+  border-radius: 14px; cursor: pointer; position: relative;
+  transition: background 0.3s;
+}
+.toggle-switch.on { background: var(--cyan); }
+.toggle-switch::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 22px; height: 22px; background: #fff; border-radius: 50%;
+  transition: transform 0.3s;
+}
+.toggle-switch.on::after { transform: translateX(22px); }
+.log-table {
+  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+}
+.log-table th, .log-table td {
+  padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left;
+}
+.log-table th {
+  color: var(--cyan); font-weight: 600; cursor: pointer;
+  white-space: nowrap; user-select: none;
+}
+.log-table th:hover { color: var(--yellow); }
+.gear-btn {
+  position: fixed; bottom: 20px; left: 20px; z-index: 800;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 1.2rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.3s; -webkit-tap-highlight-color: transparent;
+}
+.gear-btn:hover { color: var(--yellow); border-color: var(--yellow-dim); }
+
+/* ===== PASSWORD MODAL ===== */
+.pw-modal {
+  display: none; position: fixed; inset: 0; z-index: 2500;
+  background: rgba(0,0,0,0.7); justify-content: center;
+  align-items: center; padding: 20px;
+}
+.pw-modal.show { display: flex; }
+.pw-box {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px; max-width: 360px; width: 100%;
+  text-align: center;
+}
+.pw-box h3 { margin-bottom: 16px; color: var(--yellow); }
+.pw-box input {
+  width: 100%; padding: 12px 16px; background: var(--bg-card-hover);
+  border: 2px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 1rem; text-align: center; outline: none;
+  margin-bottom: 8px;
+}
+.pw-box input:focus { border-color: var(--yellow); }
+.pw-box .pw-error { color: var(--red); font-size: 0.85rem; min-height: 1.2em; margin-bottom: 12px; }
+
+/* ===== FIELDLINE SVG CONTAINERS ===== */
+.field-svg {
+  width: 140px; height: 140px; margin: 0 auto;
+}
+.field-svg-small {
+  width: 100px; height: 100px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 600px) {
+  .start-screen h1 { font-size: 2.2rem; }
+  .game-header { padding: 10px 14px; font-size: 0.9rem; }
+  .question-card { padding: 20px; }
+  .matching-targets { grid-template-columns: 1fr 1fr; }
+  .result-breakdown { grid-template-columns: 1fr 1fr; }
+  .teacher-panel { padding: 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== ANIMATED BACKGROUND CANVAS ===== -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- ===== MAIN APP ===== -->
+<div id="app">
+
+  <!-- ===== START SCREEN ===== -->
+  <div id="screen-start" class="screen start-screen active">
+    <h1>Feldlabor</h1>
+    <p class="subtitle">Interaktives Lernspiel zum Elektrischen Feld</p>
+    <div>
+      <input type="text" id="player-name" placeholder="Dein Name eingeben..." maxlength="30" autocomplete="off">
+      <p class="error-msg" id="name-error"></p>
+    </div>
+    <button class="btn btn-primary" id="btn-start" onclick="startGame()">Spiel starten</button>
+  </div>
+
+  <!-- ===== GAME SCREEN ===== -->
+  <div id="screen-game" class="screen">
+    <div class="game-header">
+      <div>
+        <div class="phase-label" id="phase-label">Phase 1: Aufwärmen</div>
+        <div class="player-name" id="display-name"></div>
+      </div>
+      <div class="timer" id="timer">10:00</div>
+      <div class="score" id="score-display">0 Punkte</div>
+    </div>
+    <div class="progress-bar"><div class="fill" id="progress-fill" style="width:0%"></div></div>
+    <div id="question-area"></div>
+    <div class="action-bar" id="action-bar"></div>
+  </div>
+
+  <!-- ===== PHASE SUMMARY SCREEN ===== -->
+  <div id="screen-summary" class="screen">
+    <div class="phase-summary" id="phase-summary-content"></div>
+  </div>
+
+  <!-- ===== RESULT SCREEN ===== -->
+  <div id="screen-result" class="screen result-screen"></div>
+
+</div>
+
+<!-- ===== FLOATING BUTTONS ===== -->
+<div class="floating-btns" id="floating-btns" style="display:none;">
+  <div class="fab fab-formula" onclick="toggleFormulaCard()" title="Formelkarte">f</div>
+</div>
+
+<!-- ===== FORMULA OVERLAY ===== -->
+<div class="formula-overlay" id="formula-overlay" onclick="closeFormulaCard(event)">
+  <div class="formula-card" onclick="event.stopPropagation()">
+    <h2 style="color:var(--cyan)">Formelkarte</h2>
+    <div class="formula-item">
+      <div>E = F<sub>C</sub> / Q</div>
+      <div class="formula-label">Feldstärke (allgemein)</div>
+    </div>
+    <div class="formula-item">
+      <div>E = U / d</div>
+      <div class="formula-label">Feldstärke im Plattenkondensator</div>
+    </div>
+    <div class="formula-item">
+      <div>F<sub>C</sub> = E &middot; Q</div>
+      <div class="formula-label">Kraft auf Ladung im Feld</div>
+    </div>
+    <div class="formula-item">
+      <div>F<sub>C</sub> = (1 / (4&pi;&middot;&epsilon;<sub>0</sub>)) &middot; (Q<sub>1</sub>&middot;Q<sub>2</sub>) / r&sup2;</div>
+      <div class="formula-label">Coulombsches Gesetz</div>
+    </div>
+    <div class="formula-item">
+      <div>W = Q &middot; U</div>
+      <div class="formula-label">Arbeit im elektrischen Feld</div>
+    </div>
+    <div class="formula-item">
+      <div>E = Q / (4&pi;&middot;&epsilon;<sub>0</sub>&middot;r&sup2;)</div>
+      <div class="formula-label">Feldstärke einer Punktladung</div>
+    </div>
+    <div class="formula-item">
+      <div>&epsilon;<sub>0</sub> = 8,85 &times; 10<sup>&minus;12</sup> As/(Vm)</div>
+      <div class="formula-label">Elektrische Feldkonstante</div>
+    </div>
+    <div class="formula-item">
+      <div>e = 1,602 &times; 10<sup>&minus;19</sup> C</div>
+      <div class="formula-label">Elementarladung</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GEAR BUTTON (Teacher Mode Trigger) ===== -->
+<button class="gear-btn" id="gear-btn" onclick="showPasswordModal()">&#9881;</button>
+
+<!-- ===== PASSWORD MODAL ===== -->
+<div class="pw-modal" id="pw-modal">
+  <div class="pw-box">
+    <h3>Lehrermodus</h3>
+    <input type="password" id="pw-input" placeholder="Passwort eingeben..." onkeydown="if(event.key==='Enter')checkPassword()">
+    <div class="pw-error" id="pw-error"></div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button class="btn btn-secondary btn-small" onclick="closePasswordModal()">Abbrechen</button>
+      <button class="btn btn-primary btn-small" onclick="checkPassword()">Bestätigen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TEACHER OVERLAY ===== -->
+<div class="teacher-overlay" id="teacher-overlay">
+  <div class="teacher-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2>Lehrermodus</h2>
+      <button class="btn btn-secondary btn-small" onclick="closeTeacherMode()">Schließen</button>
+    </div>
+    <div class="teacher-tabs" id="teacher-tabs">
+      <div class="teacher-tab active" onclick="switchTeacherTab(0)">Aufgaben</div>
+      <div class="teacher-tab" onclick="switchTeacherTab(1)">Einstellungen</div>
+      <div class="teacher-tab" onclick="switchTeacherTab(2)">Ergebnis-Log</div>
+    </div>
+    <div class="teacher-content" id="teacher-content"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   FELDLABOR - GAME ENGINE
+   ============================================================ */
+
+// ===== GAME STATE =====
+const STATE = {
+  playerName: '',
+  currentPhase: 0, // 0=start, 1-4=phases
+  currentQuestion: 0,
+  totalScore: 0,
+  phaseScores: [0, 0, 0, 0],
+  phaseErrors: [0, 0, 0, 0],
+  phaseHints: [0, 0, 0, 0], // max hint level used per phase
+  phaseTimes: [0, 0, 0, 0], // remaining seconds per phase
+  questions: [[], [], [], []], // questions per phase
+  answers: [[], [], [], []], // answers per phase (true/false/null)
+  hintsUsed: [], // per question in current phase
+  wrongQuestions: [], // indices of wrong questions across all phases for phase 4
+  timerInterval: null,
+  timerSeconds: 0,
+  maxPhaseHint: 0, // max hint level used this phase
+  phaseErrorCount: 0,
+  formulaOpen: false,
+  attempts: [], // attempts per question in current phase
+};
+
+// ===== SETTINGS (modifiable by teacher) =====
+const SETTINGS = {
+  phase1Time: 10, // minutes
+  phase2Time: 15,
+  phase3Time: 10,
+  phase4Time: 10,
+  phase1Count: 7,
+  phase2Count: 5,
+  phase3Count: 5,
+  expertPath: true,
+  hintsEnabled: true,
+};
+
+// ===== CONSTANTS =====
+const EPSILON_0 = 8.854187817e-12;
+const K_COULOMB = 1 / (4 * Math.PI * EPSILON_0);
+const TEACHER_PW = 'lehrer2026';
+
+// ===== UTILITY FUNCTIONS =====
+function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randStep(min, max, step) {
+  const steps = Math.floor((max - min) / step);
+  return min + randInt(0, steps) * step;
+}
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function sigFigs(num, figs) {
+  if (num === 0) return 0;
+  const d = Math.ceil(Math.log10(Math.abs(num)));
+  const power = figs - d;
+  const magnitude = Math.pow(10, power);
+  return Math.round(num * magnitude) / magnitude;
+}
+function formatSci(num) {
+  if (Math.abs(num) >= 0.01 && Math.abs(num) < 100000) {
+    return sigFigs(num, 4).toString().replace('.', ',');
+  }
+  const exp = Math.floor(Math.log10(Math.abs(num)));
+  const mantissa = num / Math.pow(10, exp);
+  return sigFigs(mantissa, 4).toString().replace('.', ',') + ' × 10^' + exp;
+}
+function parseNumericInput(str) {
+  if (!str || str.trim() === '') return NaN;
+  let s = str.trim().replace(',', '.').replace(/\s/g, '');
+  // Handle formats like 3.5·10⁻³ or 3.5*10^-3 or 3.5e-3
+  s = s.replace(/·|×|\*/g, 'e').replace(/10\^?e?/g, 'e').replace(/⁻/g, '-')
+       .replace(/⁰/g, '0').replace(/¹/g, '1').replace(/²/g, '2').replace(/³/g, '3')
+       .replace(/⁴/g, '4').replace(/⁵/g, '5').replace(/⁶/g, '6').replace(/⁷/g, '7')
+       .replace(/⁸/g, '8').replace(/⁹/g, '9');
+  // Clean up multiple e's
+  s = s.replace(/e+/g, 'e');
+  return parseFloat(s);
+}
+function checkTolerance(given, correct, tol = 0.05) {
+  if (correct === 0) return Math.abs(given) < 1e-10;
+  return Math.abs((given - correct) / correct) <= tol;
+}
+
+// ===== SCREEN MANAGEMENT =====
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ===== TIMER =====
+function startTimer(minutes) {
+  clearInterval(STATE.timerInterval);
+  STATE.timerSeconds = minutes * 60;
+  updateTimerDisplay();
+  STATE.timerInterval = setInterval(() => {
+    STATE.timerSeconds--;
+    if (STATE.timerSeconds <= 0) {
+      STATE.timerSeconds = 0;
+      clearInterval(STATE.timerInterval);
+    }
+    updateTimerDisplay();
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(STATE.timerInterval);
+  return STATE.timerSeconds;
+}
+function updateTimerDisplay() {
+  const el = document.getElementById('timer');
+  const m = Math.floor(STATE.timerSeconds / 60);
+  const s = STATE.timerSeconds % 60;
+  el.textContent = m + ':' + (s < 10 ? '0' : '') + s;
+  el.classList.remove('warn', 'danger');
+  if (STATE.timerSeconds <= 60) el.classList.add('danger');
+  else if (STATE.timerSeconds <= 180) el.classList.add('warn');
+}
+
+// ===== PROGRESS BAR =====
+function updateProgress(current, total) {
+  const pct = total > 0 ? (current / total) * 100 : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+// ===== SCORE DISPLAY =====
+function updateScoreDisplay() {
+  document.getElementById('score-display').textContent = STATE.totalScore + ' Punkte';
+}
+
+// ===== START GAME =====
+function startGame() {
+  const nameInput = document.getElementById('player-name');
+  const name = nameInput.value.trim();
+  if (!name) {
+    document.getElementById('name-error').textContent = 'Bitte gib deinen Namen ein!';
+    nameInput.focus();
+    return;
+  }
+  STATE.playerName = name;
+  STATE.totalScore = 0;
+  STATE.phaseScores = [0, 0, 0, 0];
+  STATE.phaseErrors = [0, 0, 0, 0];
+  STATE.phaseHints = [0, 0, 0, 0];
+  STATE.phaseTimes = [0, 0, 0, 0];
+  STATE.wrongQuestions = [];
+  document.getElementById('display-name').textContent = name;
+  document.getElementById('floating-btns').style.display = 'flex';
+  updateScoreDisplay();
+  startPhase(1);
+}
+
+// ===== PHASE MANAGEMENT =====
+function startPhase(phase) {
+  STATE.currentPhase = phase;
+  STATE.currentQuestion = 0;
+  STATE.phaseErrorCount = 0;
+  STATE.maxPhaseHint = 0;
+  STATE.hintsUsed = [];
+  STATE.attempts = [];
+  const phaseNames = ['', 'Aufwärmen', 'Rechenstation', 'Verständnis', 'Differenzierung'];
+  const phaseTimes = [0, SETTINGS.phase1Time, SETTINGS.phase2Time, SETTINGS.phase3Time, SETTINGS.phase4Time];
+  document.getElementById('phase-label').textContent = 'Phase ' + phase + ': ' + phaseNames[phase];
+  showScreen('screen-game');
+  generatePhaseQuestions(phase);
+  startTimer(phaseTimes[phase]);
+  showQuestion();
+}
+
+function generatePhaseQuestions(phase) {
+  switch(phase) {
+    case 1: STATE.questions[0] = generatePhase1Questions(); break;
+    case 2: STATE.questions[1] = generatePhase2Questions(); break;
+    case 3: STATE.questions[2] = generatePhase3Questions(); break;
+    case 4: STATE.questions[3] = generatePhase4Questions(); break;
+  }
+}
+
+function showQuestion() {
+  const phase = STATE.currentPhase;
+  const qi = STATE.currentQuestion;
+  const questions = STATE.questions[phase - 1];
+  if (qi >= questions.length) {
+    endPhase();
+    return;
+  }
+  const q = questions[qi];
+  if (!STATE.hintsUsed[qi]) STATE.hintsUsed[qi] = 0;
+  if (!STATE.attempts[qi]) STATE.attempts[qi] = 0;
+  updateProgress(qi, questions.length);
+  renderQuestion(q, qi, questions.length);
+}
+
+function endPhase() {
+  const remaining = stopTimer();
+  const phase = STATE.currentPhase;
+  const pi = phase - 1;
+  STATE.phaseTimes[pi] = remaining;
+  // Calculate phase score
+  const questions = STATE.questions[pi];
+  const basePoints = questions.length * 100;
+  let multiplier = 1;
+  if (STATE.phaseErrorCount === 0 && STATE.maxPhaseHint === 0) multiplier = 3;
+  else if (STATE.phaseErrorCount <= 1 && STATE.maxPhaseHint === 0) multiplier = 2;
+  else if (STATE.maxPhaseHint <= 2 && STATE.maxPhaseHint > 0) multiplier = 1.5;
+  else multiplier = 1;
+  const phaseScore = Math.round(basePoints * multiplier) + remaining;
+  STATE.phaseScores[pi] = phaseScore;
+  STATE.totalScore += phaseScore;
+  STATE.phaseErrors[pi] = STATE.phaseErrorCount;
+  STATE.phaseHints[pi] = STATE.maxPhaseHint;
+  updateScoreDisplay();
+  showPhaseSummary(phase, questions.length, STATE.phaseErrorCount, multiplier, remaining, phaseScore);
+}
+
+function showPhaseSummary(phase, total, errors, multiplier, timeBonus, phaseScore) {
+  const correct = total - errors;
+  const phaseNames = ['', 'Aufwärmen', 'Rechenstation', 'Verständnis', 'Differenzierung'];
+  const motivations = [
+    '',
+    correct === total ? 'Perfekt! Du bist bestens vorbereitet!' : 'Guter Start! Weiter so!',
+    correct === total ? 'Hervorragend gerechnet!' : 'Gute Arbeit an den Berechnungen!',
+    correct === total ? 'Exzellentes Verständnis!' : 'Du hast viel gelernt!',
+    'Geschafft! Du hast das Feldlabor abgeschlossen!'
+  ];
+  const html = `
+    <h2>Phase ${phase}: ${phaseNames[phase]} abgeschlossen!</h2>
+    <div class="stats">
+      <div class="stat"><div class="label">Richtig</div><div class="value">${correct}/${total}</div></div>
+      <div class="stat"><div class="label">Multiplikator</div><div class="value">×${multiplier}</div></div>
+      <div class="stat"><div class="label">Zeitbonus</div><div class="value">${timeBonus}</div></div>
+      <div class="stat"><div class="label">Phasenpunkte</div><div class="value">${phaseScore}</div></div>
+    </div>
+    <p class="motivation">${motivations[phase]}</p>
+    <button class="btn btn-primary" onclick="nextPhaseOrEnd()">${phase < 4 ? 'Weiter zu Phase ' + (phase + 1) : 'Ergebnis anzeigen'}</button>
+  `;
+  document.getElementById('phase-summary-content').innerHTML = html;
+  showScreen('screen-summary');
+}
+
+function nextPhaseOrEnd() {
+  if (STATE.currentPhase < 4) {
+    startPhase(STATE.currentPhase + 1);
+  } else {
+    showResults();
+  }
+}
+
+// ===== RENDER QUESTION =====
+function renderQuestion(q, index, total) {
+  const area = document.getElementById('question-area');
+  const bar = document.getElementById('action-bar');
+  let html = `<div class="question-card" id="q-card">`;
+  html += `<div class="question-counter">Frage ${index + 1} von ${total}</div>`;
+  html += `<div class="question-text">${q.text}</div>`;
+
+  switch(q.type) {
+    case 'mc':
+      html += `<div class="mc-options">`;
+      q.options.forEach((opt, i) => {
+        const letter = String.fromCharCode(65 + i);
+        html += `<div class="mc-option" data-index="${i}" onclick="selectMC(this, ${i})">
+          <span class="letter">${letter}</span><span>${opt}</span></div>`;
+      });
+      html += `</div>`;
+      break;
+    case 'tf':
+      html += `<div class="tf-options">
+        <div class="tf-option" data-value="true" onclick="selectTF(this, true)">Richtig</div>
+        <div class="tf-option" data-value="false" onclick="selectTF(this, false)">Falsch</div>
+      </div>`;
+      break;
+    case 'numeric':
+      html += `<div class="numeric-input-wrap">
+        <input type="text" class="numeric-input" id="numeric-answer" placeholder="Ergebnis eingeben..." autocomplete="off"
+          inputmode="decimal" onkeydown="if(event.key==='Enter')submitNumeric()">
+        <span class="numeric-unit">${q.unit || ''}</span>
+      </div>`;
+      /* Formel wird NICHT angezeigt – Schüler soll selbst die passende Formel wählen */
+      break;
+    case 'matching':
+      html += renderMatchingQuestion(q);
+      break;
+  }
+  html += `<div class="feedback" id="feedback"></div>`;
+  html += `</div>`;
+  area.innerHTML = html;
+
+  // Action bar
+  let barHtml = '<div>';
+  if (SETTINGS.hintsEnabled && q.hints && q.hints.length > 0) {
+    const usedHints = STATE.hintsUsed[index] || 0;
+    barHtml += `<button class="btn btn-hint btn-small" id="hint-btn" onclick="showHint()" ${usedHints >= q.hints.length ? 'disabled' : ''}>
+      Hinweis (${usedHints}/${q.hints.length})</button>`;
+  }
+  barHtml += '</div>';
+  if (q.type === 'numeric') {
+    barHtml += `<button class="btn btn-primary btn-small" id="submit-btn" onclick="submitNumeric()">Prüfen</button>`;
+  } else if (q.type === 'matching') {
+    barHtml += `<button class="btn btn-primary btn-small" id="submit-btn" onclick="submitMatching()">Prüfen</button>`;
+  } else {
+    barHtml += `<div></div>`;
+  }
+  bar.innerHTML = barHtml;
+
+  // Focus numeric input
+  if (q.type === 'numeric') {
+    setTimeout(() => { const inp = document.getElementById('numeric-answer'); if (inp) inp.focus(); }, 100);
+  }
+}
+
+// ===== MC SELECTION =====
+let selectedMC = -1;
+function selectMC(el, index) {
+  if (el.classList.contains('disabled')) return;
+  document.querySelectorAll('.mc-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedMC = index;
+  // Auto-submit after short delay
+  setTimeout(() => submitMC(index), 300);
+}
+
+function submitMC(index) {
+  const q = STATE.questions[STATE.currentPhase - 1][STATE.currentQuestion];
+  const correct = index === q.correct;
+  STATE.attempts[STATE.currentQuestion]++;
+  const options = document.querySelectorAll('.mc-option');
+  options.forEach(o => o.classList.add('disabled'));
+  if (correct) {
+    options[index].classList.add('correct-answer');
+    showFeedback(true, q.explanation || 'Richtig!');
+    recordAnswer(true);
+    setTimeout(nextQuestion, 1500);
+  } else {
+    options[index].classList.add('wrong-answer');
+    if (STATE.attempts[STATE.currentQuestion] >= 2) {
+      options[q.correct].classList.add('correct-answer');
+      showFeedback(false, q.solution || ('Die richtige Antwort ist: ' + q.options[q.correct]));
+      recordAnswer(false);
+      setTimeout(nextQuestion, 2500);
+    } else {
+      showFeedback(false, 'Leider falsch. Versuche es noch einmal.');
+      setTimeout(() => {
+        options.forEach(o => { o.classList.remove('disabled', 'wrong-answer'); });
+        hideFeedback();
+      }, 1200);
+    }
+  }
+}
+
+// ===== TF SELECTION =====
+function selectTF(el, value) {
+  if (el.classList.contains('disabled')) return;
+  document.querySelectorAll('.tf-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  setTimeout(() => submitTF(value), 300);
+}
+
+function submitTF(value) {
+  const q = STATE.questions[STATE.currentPhase - 1][STATE.currentQuestion];
+  const correct = value === q.correct;
+  STATE.attempts[STATE.currentQuestion]++;
+  const options = document.querySelectorAll('.tf-option');
+  options.forEach(o => o.classList.add('disabled'));
+  if (correct) {
+    options.forEach(o => { if ((o.dataset.value === 'true') === q.correct) o.classList.add('correct-answer'); });
+    showFeedback(true, q.explanation || 'Richtig!');
+    recordAnswer(true);
+    setTimeout(nextQuestion, 1500);
+  } else {
+    document.querySelector(`.tf-option[data-value="${value}"]`).classList.add('wrong-answer');
+    if (STATE.attempts[STATE.currentQuestion] >= 2) {
+      options.forEach(o => { if ((o.dataset.value === 'true') === q.correct) o.classList.add('correct-answer'); });
+      showFeedback(false, q.solution || ('Die richtige Antwort ist: ' + (q.correct ? 'Richtig' : 'Falsch')));
+      recordAnswer(false);
+      setTimeout(nextQuestion, 2500);
+    } else {
+      showFeedback(false, 'Leider falsch. Versuche es noch einmal.');
+      setTimeout(() => {
+        options.forEach(o => { o.classList.remove('disabled', 'wrong-answer', 'selected'); });
+        hideFeedback();
+      }, 1200);
+    }
+  }
+}
+
+// ===== NUMERIC SUBMISSION =====
+function submitNumeric() {
+  const q = STATE.questions[STATE.currentPhase - 1][STATE.currentQuestion];
+  const input = document.getElementById('numeric-answer');
+  const val = parseNumericInput(input.value);
+  if (isNaN(val)) {
+    showFeedback(false, 'Bitte gib eine gültige Zahl ein. Du kannst auch wissenschaftliche Notation verwenden (z.B. 3.5e-3).');
+    return;
+  }
+  STATE.attempts[STATE.currentQuestion]++;
+  const correct = checkTolerance(val, q.answer);
+  const submitBtn = document.getElementById('submit-btn');
+  if (correct) {
+    input.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    showFeedback(true, q.explanation || 'Richtig!');
+    recordAnswer(true);
+    setTimeout(nextQuestion, 1800);
+  } else {
+    if (STATE.attempts[STATE.currentQuestion] >= 2) {
+      input.disabled = true;
+      if (submitBtn) submitBtn.disabled = true;
+      showFeedback(false, q.solution || ('Die richtige Lösung ist: ' + formatSci(q.answer) + ' ' + (q.unit || '')));
+      recordAnswer(false);
+      setTimeout(nextQuestion, 3000);
+    } else {
+      showFeedback(false, 'Leider falsch. Versuche es noch einmal. Achte auf die Einheiten!');
+      setTimeout(hideFeedback, 1500);
+    }
+  }
+}
+
+// ===== MATCHING (Drag & Drop / Tap) =====
+let matchState = { assignments: {}, selectedItem: null };
+
+function renderMatchingQuestion(q) {
+  matchState = { assignments: {}, selectedItem: null };
+  let html = '<div class="matching-area">';
+  html += '<div class="matching-targets">';
+  q.targets.forEach((t, i) => {
+    html += `<div class="match-target" data-target="${i}" onclick="tapTarget(${i})"
+      ondragover="event.preventDefault();this.classList.add('drag-over')"
+      ondragleave="this.classList.remove('drag-over')"
+      ondrop="dropItem(event, ${i})">
+      ${t.label}
+    </div>`;
+  });
+  html += '</div>';
+  html += '<div class="matching-items" id="match-items-pool">';
+  const shuffled = shuffle(q.items.map((item, i) => ({ ...item, origIndex: i })));
+  shuffled.forEach((item) => {
+    html += `<div class="match-item" data-item="${item.origIndex}" draggable="true"
+      ondragstart="dragStart(event, ${item.origIndex})"
+      onclick="tapItem(${item.origIndex})">${item.label}</div>`;
+  });
+  html += '</div></div>';
+  return html;
+}
+
+function dragStart(e, itemIndex) {
+  e.dataTransfer.setData('text/plain', itemIndex);
+}
+
+function dropItem(e, targetIndex) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const itemIndex = parseInt(e.dataTransfer.getData('text/plain'));
+  assignMatch(itemIndex, targetIndex);
+}
+
+function tapItem(itemIndex) {
+  const items = document.querySelectorAll('.match-item');
+  if (matchState.selectedItem === itemIndex) {
+    matchState.selectedItem = null;
+    items.forEach(i => i.classList.remove('tap-selected'));
+    return;
+  }
+  matchState.selectedItem = itemIndex;
+  items.forEach(i => i.classList.remove('tap-selected'));
+  document.querySelector(`.match-item[data-item="${itemIndex}"]`).classList.add('tap-selected');
+}
+
+function tapTarget(targetIndex) {
+  if (matchState.selectedItem !== null) {
+    assignMatch(matchState.selectedItem, targetIndex);
+    matchState.selectedItem = null;
+    document.querySelectorAll('.match-item').forEach(i => i.classList.remove('tap-selected'));
+  }
+}
+
+function assignMatch(itemIndex, targetIndex) {
+  // Remove previous assignment of this item
+  for (const t in matchState.assignments) {
+    if (matchState.assignments[t] === itemIndex) delete matchState.assignments[t];
+  }
+  // Remove previous item from this target
+  const prevItem = matchState.assignments[targetIndex];
+  if (prevItem !== undefined) {
+    const prevEl = document.querySelector(`.match-item[data-item="${prevItem}"]`);
+    if (prevEl) prevEl.classList.remove('placed');
+  }
+  matchState.assignments[targetIndex] = itemIndex;
+  // Update visuals
+  const itemEl = document.querySelector(`.match-item[data-item="${itemIndex}"]`);
+  if (itemEl) itemEl.classList.add('placed');
+  const targetEl = document.querySelector(`.match-target[data-target="${targetIndex}"]`);
+  const q = STATE.questions[STATE.currentPhase - 1][STATE.currentQuestion];
+  if (targetEl) {
+    targetEl.classList.add('filled');
+    const item = q.items[itemIndex];
+    targetEl.innerHTML = q.targets[targetIndex].label + '<br><strong style="color:var(--cyan)">' + item.label + '</strong>';
+  }
+  // Reset all items visual
+  document.querySelectorAll('.match-item').forEach(i => {
+    const idx = parseInt(i.dataset.item);
+    const isAssigned = Object.values(matchState.assignments).includes(idx);
+    i.classList.toggle('placed', isAssigned);
+  });
+}
+
+function submitMatching() {
+  const q = STATE.questions[STATE.currentPhase - 1][STATE.currentQuestion];
+  STATE.attempts[STATE.currentQuestion]++;
+  const targets = document.querySelectorAll('.match-target');
+  let allCorrect = true;
+  let allFilled = true;
+  targets.forEach((t, i) => {
+    if (matchState.assignments[i] === undefined) allFilled = false;
+  });
+  if (!allFilled) {
+    showFeedback(false, 'Bitte ordne alle Elemente zu!');
+    return;
+  }
+  targets.forEach((t, i) => {
+    const itemIdx = matchState.assignments[i];
+    const isCorrect = q.items[itemIdx].correctTarget === i;
+    t.classList.add(isCorrect ? 'correct' : 'wrong');
+    if (!isCorrect) allCorrect = false;
+  });
+  document.querySelectorAll('.match-item').forEach(i => { i.style.pointerEvents = 'none'; });
+  const submitBtn = document.getElementById('submit-btn');
+  if (allCorrect) {
+    showFeedback(true, q.explanation || 'Alle richtig zugeordnet!');
+    recordAnswer(true);
+    if (submitBtn) submitBtn.disabled = true;
+    setTimeout(nextQuestion, 1800);
+  } else {
+    if (STATE.attempts[STATE.currentQuestion] >= 2) {
+      showFeedback(false, q.solution || 'Leider nicht ganz richtig. Hier ist die korrekte Zuordnung.');
+      recordAnswer(false);
+      // Show correct assignments
+      targets.forEach((t, i) => {
+        const correctItemIdx = q.items.findIndex(item => item.correctTarget === i);
+        if (correctItemIdx >= 0) {
+          t.innerHTML = q.targets[i].label + '<br><strong style="color:var(--green)">' + q.items[correctItemIdx].label + '</strong>';
+          t.classList.remove('wrong');
+          t.classList.add('correct');
+        }
+      });
+      if (submitBtn) submitBtn.disabled = true;
+      setTimeout(nextQuestion, 3000);
+    } else {
+      showFeedback(false, 'Nicht ganz richtig. Versuche es noch einmal.');
+      setTimeout(() => {
+        targets.forEach(t => { t.classList.remove('correct', 'wrong'); });
+        document.querySelectorAll('.match-item').forEach(i => { i.style.pointerEvents = ''; });
+        hideFeedback();
+        // Reset assignments
+        matchState = { assignments: {}, selectedItem: null };
+        document.querySelectorAll('.match-item').forEach(i => i.classList.remove('placed'));
+        targets.forEach((t, i) => {
+          t.classList.remove('filled');
+          const q2 = STATE.questions[STATE.currentPhase - 1][STATE.currentQuestion];
+          t.innerHTML = q2.targets[i].label;
+        });
+      }, 1500);
+    }
+  }
+}
+
+// ===== FEEDBACK =====
+function showFeedback(isCorrect, msg) {
+  const el = document.getElementById('feedback');
+  el.className = 'feedback show ' + (isCorrect ? 'correct' : 'wrong');
+  el.textContent = msg;
+  const card = document.getElementById('q-card');
+  card.classList.remove('correct', 'wrong');
+  card.classList.add(isCorrect ? 'correct' : 'wrong');
+}
+function hideFeedback() {
+  const el = document.getElementById('feedback');
+  el.className = 'feedback';
+  const card = document.getElementById('q-card');
+  if (card) card.classList.remove('correct', 'wrong');
+}
+
+// ===== RECORD ANSWER =====
+function recordAnswer(correct) {
+  const pi = STATE.currentPhase - 1;
+  if (!correct) {
+    STATE.phaseErrorCount++;
+    STATE.wrongQuestions.push({ phase: STATE.currentPhase, questionIndex: STATE.currentQuestion, question: STATE.questions[pi][STATE.currentQuestion] });
+  }
+}
+
+// ===== HINTS =====
+function showHint() {
+  const qi = STATE.currentQuestion;
+  const q = STATE.questions[STATE.currentPhase - 1][qi];
+  if (!q.hints || q.hints.length === 0) return;
+  const currentLevel = STATE.hintsUsed[qi] || 0;
+  if (currentLevel >= q.hints.length) return;
+  STATE.hintsUsed[qi] = currentLevel + 1;
+  if (currentLevel + 1 > STATE.maxPhaseHint) STATE.maxPhaseHint = currentLevel + 1;
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback show info';
+  fb.textContent = 'Hinweis ' + (currentLevel + 1) + ': ' + q.hints[currentLevel];
+  // Update hint button
+  const btn = document.getElementById('hint-btn');
+  if (btn) {
+    btn.textContent = `Hinweis (${currentLevel + 1}/${q.hints.length})`;
+    if (currentLevel + 1 >= q.hints.length) btn.disabled = true;
+  }
+}
+
+// ===== NEXT QUESTION =====
+function nextQuestion() {
+  STATE.currentQuestion++;
+  showQuestion();
+}
+
+// ===== FORMULA CARD =====
+function toggleFormulaCard() {
+  const overlay = document.getElementById('formula-overlay');
+  overlay.classList.toggle('show');
+}
+function closeFormulaCard(e) {
+  if (e.target === document.getElementById('formula-overlay')) {
+    document.getElementById('formula-overlay').classList.remove('show');
+  }
+}
+
+// ===== TEACHER MODE =====
+function showPasswordModal() {
+  document.getElementById('pw-modal').classList.add('show');
+  document.getElementById('pw-input').value = '';
+  document.getElementById('pw-error').textContent = '';
+  setTimeout(() => document.getElementById('pw-input').focus(), 100);
+}
+function closePasswordModal() {
+  document.getElementById('pw-modal').classList.remove('show');
+}
+function checkPassword() {
+  const pw = document.getElementById('pw-input').value;
+  if (pw === TEACHER_PW) {
+    closePasswordModal();
+    openTeacherMode();
+  } else {
+    document.getElementById('pw-error').textContent = 'Falsches Passwort!';
+  }
+}
+function openTeacherMode() {
+  document.getElementById('teacher-overlay').classList.add('show');
+  switchTeacherTab(0);
+}
+function closeTeacherMode() {
+  document.getElementById('teacher-overlay').classList.remove('show');
+}
+
+let currentTeacherTab = 0;
+function switchTeacherTab(index) {
+  currentTeacherTab = index;
+  document.querySelectorAll('.teacher-tab').forEach((t, i) => t.classList.toggle('active', i === index));
+  const content = document.getElementById('teacher-content');
+  switch(index) {
+    case 0: content.innerHTML = renderTeacherTasks(); break;
+    case 1: content.innerHTML = renderTeacherSettings(); break;
+    case 2: content.innerHTML = renderTeacherLog(); break;
+  }
+}
+
+function renderTeacherTasks() {
+  let html = '<h3 style="color:var(--cyan);margin-bottom:12px">Phase 1: Aufwärmen – Konzeptfragen</h3>';
+  html += '<ul style="margin-bottom:16px;padding-left:20px;color:var(--text-dim);font-size:0.9rem">';
+  html += '<li>Multiple Choice: Feldlinienregeln, homogenes/inhomogenes Feld, Elementarladung, Ladungserhaltung/-trennung, Nachweis E-Feld</li>';
+  html += '<li>Richtig/Falsch: Feldlinien kreuzen (F), konstante Beschleunigung homogenes Feld (R), Einheit Feldstärke (F), Feldlinien senkrecht auf Leiter (R), Influenz erzeugt Ladungen (F)</li>';
+  html += '<li>Zuordnung: Feldlinienbilder → Ladungsanordnung, Formeln → Bedeutung</li>';
+  html += '</ul>';
+
+  html += '<h3 style="color:var(--cyan);margin-bottom:12px">Phase 2: Rechenstation</h3>';
+  html += '<div style="font-size:0.9rem;color:var(--text-dim);margin-bottom:16px">';
+  const examples = [
+    { title: 'Elementarladungen (N = Q/e)', ex: 'Q=10 nC → N = 10×10⁻⁹ / 1,602×10⁻¹⁹ ≈ 6,24×10¹⁰' },
+    { title: 'Ladung aus Strom (Q = I·t)', ex: 'I=500 mA, t=60 s → Q = 0,5·60 = 30 C' },
+    { title: 'Kraft im Feld (Fc = E·Q)', ex: 'E=2000 V/m, Q=10 μC → Fc = 2000·10⁻⁵ = 0,02 N' },
+    { title: 'Spannung (U = W/Q)', ex: 'W=200 mJ, Q=5 μC → U = 0,2/5×10⁻⁶ = 40 000 V' },
+    { title: 'Coulomb-Kraft', ex: 'Q₁=10 μC, Q₂=5 μC, r=20 cm → Fc ≈ 11,24 N' },
+    { title: 'Feldstärke Punktladung', ex: 'Q=25 nC, r=10 cm → E ≈ 22 475 V/m' },
+  ];
+  examples.forEach(e => {
+    html += `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong style="color:var(--yellow)">${e.title}</strong><br>${e.ex}</div>`;
+  });
+  html += '</div>';
+
+  html += '<h3 style="color:var(--cyan);margin-bottom:12px">Phase 3: Verständnis – Transferfragen</h3>';
+  html += '<ul style="margin-bottom:16px;padding-left:20px;color:var(--text-dim);font-size:0.9rem">';
+  const p3q = [
+    'Abstand verdoppelt → F/4', 'Positive Ladung im Feld → Bewegung in Feldrichtung',
+    'Abstand halbiert, U gleich → E verdoppelt', 'Zwei positive Ladungen → abstoßendes Feld',
+    'Q₁ verdreifacht → F verdreifacht', 'Beide Q verdoppelt → F vervierfacht',
+    'Einheit Feldstärke → N/C oder V/m', 'Elektron im homogenen Feld → gleichmäßig beschleunigt entgegen E',
+    'Spannung = Arbeit/Ladung', 'ε_r (Luft) ≈ 1',
+    'Abstand auf 1/3 → F verneunfacht', 'U verdoppelt + d halbiert → E vervierfacht'
+  ];
+  p3q.forEach(q => { html += `<li>${q}</li>`; });
+  html += '</ul>';
+
+  html += '<h3 style="color:var(--cyan);margin-bottom:12px">Phase 4: Differenzierung</h3>';
+  html += '<p style="font-size:0.9rem;color:var(--text-dim)"><strong>Standardpfad:</strong> Fehlerhafte Aufgaben mit neuen Werten wiederholen.<br>';
+  html += '<strong>Expertenpfad:</strong> Kombinationsaufgabe (Kraft+Feldstärke), Umkehraufgabe (Abstand berechnen), Vergleich (r vs 3r), Konzepttransfer (inhomogenes Feld).</p>';
+  return html;
+}
+
+function renderTeacherSettings() {
+  return `
+    <div class="settings-row">
+      <label>Timer Phase 1 (Min)</label>
+      <input type="range" min="5" max="20" value="${SETTINGS.phase1Time}" oninput="SETTINGS.phase1Time=+this.value;this.nextElementSibling.textContent=this.value+' min'">
+      <span class="range-value">${SETTINGS.phase1Time} min</span>
+    </div>
+    <div class="settings-row">
+      <label>Timer Phase 2 (Min)</label>
+      <input type="range" min="5" max="20" value="${SETTINGS.phase2Time}" oninput="SETTINGS.phase2Time=+this.value;this.nextElementSibling.textContent=this.value+' min'">
+      <span class="range-value">${SETTINGS.phase2Time} min</span>
+    </div>
+    <div class="settings-row">
+      <label>Timer Phase 3 (Min)</label>
+      <input type="range" min="5" max="20" value="${SETTINGS.phase3Time}" oninput="SETTINGS.phase3Time=+this.value;this.nextElementSibling.textContent=this.value+' min'">
+      <span class="range-value">${SETTINGS.phase3Time} min</span>
+    </div>
+    <div class="settings-row">
+      <label>Timer Phase 4 (Min)</label>
+      <input type="range" min="5" max="20" value="${SETTINGS.phase4Time}" oninput="SETTINGS.phase4Time=+this.value;this.nextElementSibling.textContent=this.value+' min'">
+      <span class="range-value">${SETTINGS.phase4Time} min</span>
+    </div>
+    <div class="settings-row">
+      <label>Fragen Phase 1</label>
+      <input type="range" min="4" max="10" value="${SETTINGS.phase1Count}" oninput="SETTINGS.phase1Count=+this.value;this.nextElementSibling.textContent=this.value">
+      <span class="range-value">${SETTINGS.phase1Count}</span>
+    </div>
+    <div class="settings-row">
+      <label>Fragen Phase 2</label>
+      <input type="range" min="3" max="7" value="${SETTINGS.phase2Count}" oninput="SETTINGS.phase2Count=+this.value;this.nextElementSibling.textContent=this.value">
+      <span class="range-value">${SETTINGS.phase2Count}</span>
+    </div>
+    <div class="settings-row">
+      <label>Fragen Phase 3</label>
+      <input type="range" min="3" max="8" value="${SETTINGS.phase3Count}" oninput="SETTINGS.phase3Count=+this.value;this.nextElementSibling.textContent=this.value">
+      <span class="range-value">${SETTINGS.phase3Count}</span>
+    </div>
+    <div class="settings-row">
+      <label>Expertenpfad</label>
+      <div class="toggle-switch ${SETTINGS.expertPath ? 'on' : ''}" onclick="SETTINGS.expertPath=!SETTINGS.expertPath;this.classList.toggle('on')"></div>
+    </div>
+    <div class="settings-row">
+      <label>Hinweissystem</label>
+      <div class="toggle-switch ${SETTINGS.hintsEnabled ? 'on' : ''}" onclick="SETTINGS.hintsEnabled=!SETTINGS.hintsEnabled;this.classList.toggle('on')"></div>
+    </div>
+  `;
+}
+
+function renderTeacherLog() {
+  const logs = JSON.parse(localStorage.getItem('feldlabor_logs') || '[]');
+  if (logs.length === 0) return '<p style="color:var(--text-dim)">Noch keine Ergebnisse gespeichert.</p>';
+  let html = `
+    <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-small" onclick="exportCSV()">Als CSV exportieren</button>
+      <button class="btn btn-small" style="background:rgba(255,82,82,0.1);color:var(--red);border-color:var(--red);" onclick="clearLogs()">Ergebnisse löschen</button>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="log-table">
+      <thead><tr>
+        <th onclick="sortLogs('name')">Name</th>
+        <th onclick="sortLogs('date')">Datum</th>
+        <th onclick="sortLogs('p1')">P1</th>
+        <th onclick="sortLogs('p2')">P2</th>
+        <th onclick="sortLogs('p3')">P3</th>
+        <th onclick="sortLogs('p4')">P4</th>
+        <th onclick="sortLogs('total')">Gesamt</th>
+        <th>Medaille</th>
+      </tr></thead><tbody>`;
+  logs.forEach(l => {
+    html += `<tr>
+      <td>${l.name}</td><td>${l.date}</td>
+      <td>${l.p1}</td><td>${l.p2}</td><td>${l.p3}</td><td>${l.p4}</td>
+      <td style="font-weight:700;color:var(--yellow)">${l.total}</td>
+      <td>${l.medal}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function exportCSV() {
+  const logs = JSON.parse(localStorage.getItem('feldlabor_logs') || '[]');
+  let csv = 'Name;Datum;Phase1;Phase2;Phase3;Phase4;Gesamt;Medaille\n';
+  logs.forEach(l => {
+    csv += `${l.name};${l.date};${l.p1};${l.p2};${l.p3};${l.p4};${l.total};${l.medal}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'feldlabor_ergebnisse.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearLogs() {
+  if (confirm('Alle gespeicherten Ergebnisse wirklich löschen?')) {
+    localStorage.removeItem('feldlabor_logs');
+    switchTeacherTab(2);
+  }
+}
+
+let logSortKey = 'date', logSortAsc = false;
+function sortLogs(key) {
+  if (logSortKey === key) logSortAsc = !logSortAsc;
+  else { logSortKey = key; logSortAsc = true; }
+  const logs = JSON.parse(localStorage.getItem('feldlabor_logs') || '[]');
+  logs.sort((a, b) => {
+    let va = a[key], vb = b[key];
+    if (typeof va === 'number') return logSortAsc ? va - vb : vb - va;
+    return logSortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+  });
+  localStorage.setItem('feldlabor_logs', JSON.stringify(logs));
+  switchTeacherTab(2);
+}
+
+// ===== RESULTS =====
+function showResults() {
+  document.getElementById('floating-btns').style.display = 'none';
+  const maxScore = calculateMaxScore();
+  const pct = maxScore > 0 ? STATE.totalScore / maxScore : 0;
+  let medal, medalEmoji, medalClass;
+  if (pct >= 0.8) { medal = 'Gold'; medalEmoji = '🥇'; medalClass = 'gold'; }
+  else if (pct >= 0.6) { medal = 'Silber'; medalEmoji = '🥈'; medalClass = 'silver'; }
+  else if (pct >= 0.4) { medal = 'Bronze'; medalEmoji = '🥉'; medalClass = 'bronze'; }
+  else { medal = 'Teilgenommen'; medalEmoji = '🎓'; medalClass = 'none'; }
+
+  const profile = analyzeProfile();
+  const phaseNames = ['Aufwärmen', 'Rechenstation', 'Verständnis', 'Differenzierung'];
+  let html = `
+    <div class="medal ${medalClass}">${medalEmoji}</div>
+    <h2 style="color:var(--cyan);margin-bottom:8px">${medal}!</h2>
+    <div class="result-total">${STATE.totalScore} Punkte</div>
+    <p style="color:var(--text-dim);margin-bottom:20px">${Math.round(pct * 100)}% der Maximalpunktzahl</p>
+    <div class="result-breakdown">`;
+  for (let i = 0; i < 4; i++) {
+    html += `<div class="card" style="margin-bottom:0"><div class="label" style="font-size:0.8rem;color:var(--text-dim)">${phaseNames[i]}</div>
+      <div style="font-size:1.4rem;font-weight:700;color:var(--yellow)">${STATE.phaseScores[i]}</div></div>`;
+  }
+  html += `</div>`;
+  html += `<div class="profile-section card">
+    <h3 style="color:var(--cyan)">Stärken- und Schwächenprofil</h3>`;
+  if (profile.strengths.length > 0) {
+    html += `<p class="strength" style="margin-bottom:8px">Stark in: ${profile.strengths.join(', ')}</p>`;
+  }
+  if (profile.weaknesses.length > 0) {
+    html += `<p class="weakness">Üben solltest du: ${profile.weaknesses.join(', ')}</p>`;
+  }
+  if (profile.strengths.length === 0 && profile.weaknesses.length === 0) {
+    html += `<p style="color:var(--text-dim)">Gut gemacht!</p>`;
+  }
+  html += `</div>`;
+  html += `<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:10px;">
+    <button class="btn btn-primary" onclick="saveResult('${medal}')">Ergebnis speichern</button>
+    <button class="btn btn-secondary" onclick="location.reload()">Nochmal spielen</button>
+  </div>`;
+
+  document.getElementById('screen-result').innerHTML = html;
+  showScreen('screen-result');
+}
+
+function calculateMaxScore() {
+  // Max = all questions correct, x3 multiplier, max time bonus
+  const counts = [SETTINGS.phase1Count, SETTINGS.phase2Count, SETTINGS.phase3Count, 5];
+  const times = [SETTINGS.phase1Time, SETTINGS.phase2Time, SETTINGS.phase3Time, SETTINGS.phase4Time];
+  let max = 0;
+  for (let i = 0; i < 4; i++) {
+    max += counts[i] * 100 * 3 + times[i] * 60; // base * max multiplier + full time bonus
+  }
+  return max;
+}
+
+function analyzeProfile() {
+  const strengths = [];
+  const weaknesses = [];
+  const categories = {
+    'Feldlinien-Konzepte': { correct: 0, total: 0 },
+    'Coulomb-Berechnung': { correct: 0, total: 0 },
+    'Elektrische Feldstärke': { correct: 0, total: 0 },
+    'Feldstärke Punktladung': { correct: 0, total: 0 },
+    'Elementarladung': { correct: 0, total: 0 },
+    'Elektrische Ladung': { correct: 0, total: 0 },
+    'Arbeit im E-Feld': { correct: 0, total: 0 },
+    'Plattenkondensator': { correct: 0, total: 0 },
+    'Konzeptwissen': { correct: 0, total: 0 },
+    'Transferdenken': { correct: 0, total: 0 },
+  };
+  // Analyze wrong questions
+  STATE.wrongQuestions.forEach(wq => {
+    const q = wq.question;
+    if (q.category && categories[q.category]) {
+      categories[q.category].total++;
+    }
+  });
+  // Also count correct
+  for (let pi = 0; pi < 4; pi++) {
+    STATE.questions[pi].forEach((q, qi) => {
+      if (q.category && categories[q.category]) {
+        categories[q.category].total++;
+        const isWrong = STATE.wrongQuestions.some(wq => wq.phase === pi + 1 && wq.questionIndex === qi);
+        if (!isWrong) categories[q.category].correct++;
+      }
+    });
+  }
+  for (const [cat, data] of Object.entries(categories)) {
+    if (data.total === 0) continue;
+    const rate = data.correct / data.total;
+    if (rate >= 0.8) strengths.push(cat);
+    else if (rate < 0.5) weaknesses.push(cat);
+  }
+  return { strengths, weaknesses };
+}
+
+function saveResult(medal) {
+  const logs = JSON.parse(localStorage.getItem('feldlabor_logs') || '[]');
+  logs.push({
+    name: STATE.playerName,
+    date: new Date().toLocaleDateString('de-DE'),
+    p1: STATE.phaseScores[0],
+    p2: STATE.phaseScores[1],
+    p3: STATE.phaseScores[2],
+    p4: STATE.phaseScores[3],
+    total: STATE.totalScore,
+    medal: medal,
+  });
+  localStorage.setItem('feldlabor_logs', JSON.stringify(logs));
+  alert('Ergebnis gespeichert!');
+}
+
+// ===== ANIMATED BACKGROUND =====
+function initBackground() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let w, h, particles;
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+  function createParticles() {
+    particles = [];
+    const count = Math.floor((w * h) / 15000);
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * w, y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.5, vy: (Math.random() - 0.5) * 0.5,
+        r: Math.random() * 2 + 1,
+      });
+    }
+  }
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#00e5ff';
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    });
+    // Draw connections
+    ctx.strokeStyle = 'rgba(0,229,255,0.15)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+  resize();
+  createParticles();
+  draw();
+  window.addEventListener('resize', () => { resize(); createParticles(); });
+}
+
+// ===== FIELD LINE SVG GENERATORS =====
+function svgPositivePoint() {
+  return `<svg viewBox="0 0 140 140" class="field-svg"><circle cx="70" cy="70" r="12" fill="#ff5252" stroke="#ff8a80" stroke-width="2"/>
+    <text x="70" y="75" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">+</text>
+    ${[0,45,90,135,180,225,270,315].map(a => {
+      const rad = a * Math.PI / 180;
+      const x1 = 70 + 16 * Math.cos(rad), y1 = 70 + 16 * Math.sin(rad);
+      const x2 = 70 + 55 * Math.cos(rad), y2 = 70 + 55 * Math.sin(rad);
+      const ax = x2 - 8 * Math.cos(rad - 0.3), ay = y2 - 8 * Math.sin(rad - 0.3);
+      const bx = x2 - 8 * Math.cos(rad + 0.3), by = y2 - 8 * Math.sin(rad + 0.3);
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#00e5ff" stroke-width="1.5"/>
+        <polygon points="${x2},${y2} ${ax},${ay} ${bx},${by}" fill="#00e5ff"/>`;
+    }).join('')}</svg>`;
+}
+
+function svgNegativePoint() {
+  return `<svg viewBox="0 0 140 140" class="field-svg"><circle cx="70" cy="70" r="12" fill="#448aff" stroke="#82b1ff" stroke-width="2"/>
+    <text x="70" y="75" text-anchor="middle" fill="#fff" font-size="14" font-weight="bold">−</text>
+    ${[0,45,90,135,180,225,270,315].map(a => {
+      const rad = a * Math.PI / 180;
+      const x1 = 70 + 55 * Math.cos(rad), y1 = 70 + 55 * Math.sin(rad);
+      const x2 = 70 + 16 * Math.cos(rad), y2 = 70 + 16 * Math.sin(rad);
+      const ax = x2 - 8 * Math.cos(rad + Math.PI - 0.3), ay = y2 - 8 * Math.sin(rad + Math.PI - 0.3);
+      const bx = x2 - 8 * Math.cos(rad + Math.PI + 0.3), by = y2 - 8 * Math.sin(rad + Math.PI + 0.3);
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#00e5ff" stroke-width="1.5"/>
+        <polygon points="${x2},${y2} ${ax},${ay} ${bx},${by}" fill="#00e5ff"/>`;
+    }).join('')}</svg>`;
+}
+
+function svgDipole() {
+  return `<svg viewBox="0 0 200 140" class="field-svg" style="width:180px">
+    <circle cx="50" cy="70" r="10" fill="#ff5252"/><text x="50" y="74" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">+</text>
+    <circle cx="150" cy="70" r="10" fill="#448aff"/><text x="150" y="74" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">−</text>
+    ${[[-20,0],[0,-25],[0,25],[20,0],[-15,-18],[-15,18],[15,-18],[15,18]].map(([dy1,dx1]) => {
+      const sx = 62, sy = 70 + dx1, ex = 138, ey = 70 + dx1;
+      const cy1 = 70 + dy1 * 2;
+      return `<path d="M${sx},${sy} Q100,${cy1} ${ex},${ey}" fill="none" stroke="#00e5ff" stroke-width="1.2"/>
+        <polygon points="${ex},${ey} ${ex-7},${ey-3} ${ex-7},${ey+3}" fill="#00e5ff"/>`;
+    }).join('')}</svg>`;
+}
+
+function svgTwoPositive() {
+  return `<svg viewBox="0 0 200 140" class="field-svg" style="width:180px">
+    <circle cx="55" cy="70" r="10" fill="#ff5252"/><text x="55" y="74" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">+</text>
+    <circle cx="145" cy="70" r="10" fill="#ff5252"/><text x="145" y="74" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">+</text>
+    ${[[-50,0],[50,0],[0,-50],[0,50],[-35,-35],[-35,35],[35,-35],[35,35]].map(([dx,dy]) => {
+      const cx1 = 55, cy1 = 70;
+      const rad = Math.atan2(dy === 0 ? 0 : (dy < 0 ? -1 : 1), dx === 0 ? 0 : (dx < 0 ? -1 : 1));
+      const ex1 = 55 + dx * 0.9, ey1 = 70 + dy * 0.9;
+      return `<line x1="${55 + (dx<0?-12:dx>0?-5:0) * Math.sign(dx||1)}" y1="${70 + (dy?dy*0.15:0)}" x2="${ex1}" y2="${ey1}" stroke="#00e5ff" stroke-width="1.2"/>`;
+    }).join('')}
+    ${[[-50,0],[50,0],[0,-50],[0,50],[-35,-35],[-35,35],[35,-35],[35,35]].map(([dx,dy]) => {
+      const ex2 = 145 + dx * 0.9, ey2 = 70 + dy * 0.9;
+      return `<line x1="${145 + (dx>0?12:dx<0?5:0) * Math.sign(dx||1)}" y1="${70 + (dy?dy*0.15:0)}" x2="${ex2}" y2="${ey2}" stroke="#00e5ff" stroke-width="1.2"/>`;
+    }).join('')}</svg>`;
+}
+
+function svgPlateCapacitor() {
+  return `<svg viewBox="0 0 180 140" class="field-svg" style="width:170px">
+    <rect x="30" y="15" width="6" height="110" rx="2" fill="#ff5252"/><text x="33" y="10" text-anchor="middle" fill="#ff8a80" font-size="11">+</text>
+    <rect x="144" y="15" width="6" height="110" rx="2" fill="#448aff"/><text x="147" y="10" text-anchor="middle" fill="#82b1ff" font-size="11">−</text>
+    ${[30,50,70,90,110].map(y => {
+      return `<line x1="40" y1="${y}" x2="140" y2="${y}" stroke="#00e5ff" stroke-width="1.3"/>
+        <polygon points="140,${y} 134,${y-3} 134,${y+3}" fill="#00e5ff"/>`;
+    }).join('')}</svg>`;
+}
+
+// ===== PHASE 1: CONCEPT QUESTIONS =====
+function generatePhase1Questions() {
+  const allQuestions = [];
+
+  // --- MC Questions ---
+  allQuestions.push({
+    type: 'mc', category: 'Feldlinien-Konzepte',
+    text: 'Welche Aussage über elektrische Feldlinien ist korrekt?',
+    options: [
+      'Feldlinien beginnen bei positiven und enden bei negativen Ladungen.',
+      'Feldlinien können sich kreuzen, wenn das Feld stark genug ist.',
+      'Feldlinien beginnen bei negativen und enden bei positiven Ladungen.',
+      'Feldlinien verlaufen immer parallel zueinander.'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Feldlinien verlaufen stets von positiven zu negativen Ladungen.',
+    hints: ['Denke an die Konvention für die Richtung von Feldlinien.', 'Feldlinien zeigen die Richtung der Kraft auf eine positive Probeladung.', 'Von + nach − ist die Regel.']
+  });
+
+  allQuestions.push({
+    type: 'mc', category: 'Feldlinien-Konzepte',
+    text: 'Was gibt die Dichte der Feldlinien in einer Darstellung an?',
+    options: [
+      'Die Stärke des elektrischen Feldes',
+      'Die Geschwindigkeit der Ladungsträger',
+      'Die Spannung zwischen den Ladungen',
+      'Die Masse der geladenen Körper'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Je dichter die Feldlinien, desto stärker das elektrische Feld.',
+    hints: ['Was passiert mit den Feldlinien nahe an einer Ladung?', 'Dichter = stärker oder schwächer?', 'Dichte Feldlinien = starkes Feld.']
+  });
+
+  allQuestions.push({
+    type: 'mc', category: 'Konzeptwissen',
+    text: 'Welche Eigenschaft beschreibt ein homogenes elektrisches Feld?',
+    options: [
+      'Die Feldstärke ist überall gleich groß und gleich gerichtet.',
+      'Die Feldlinien laufen radial von einem Punkt aus.',
+      'Die Feldstärke nimmt mit dem Abstand quadratisch ab.',
+      'Die Kraft auf eine Ladung hängt vom Ort ab.'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Im homogenen Feld ist E = konstant, z. B. im Plattenkondensator.',
+    hints: ['Denke an den Plattenkondensator.', 'Wie sehen die Feldlinien zwischen zwei parallelen Platten aus?', 'Parallele, gleichmäßig verteilte Feldlinien = homogenes Feld.']
+  });
+
+  allQuestions.push({
+    type: 'mc', category: 'Konzeptwissen',
+    text: 'Was ist die Elementarladung?',
+    options: [
+      'Die kleinste frei vorkommende elektrische Ladung: e = 1,602 × 10⁻¹⁹ C',
+      'Die Ladung eines Protons in Milliampere',
+      'Die Gesamtladung eines Atoms',
+      'Die Ladung, die in einer Sekunde durch einen Leiter fließt'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Die Elementarladung e ≈ 1,602 × 10⁻¹⁹ C ist die Ladung eines Protons.',
+    hints: ['Es geht um die kleinste Ladungseinheit.', 'Welche Ladung trägt ein einzelnes Proton oder Elektron?', 'e = 1,602 × 10⁻¹⁹ C']
+  });
+
+  allQuestions.push({
+    type: 'mc', category: 'Konzeptwissen',
+    text: 'Wie kann man elektrische Ladungen trennen?',
+    options: [
+      'Durch Reibung und Influenz',
+      'Nur durch chemische Reaktionen',
+      'Durch Erhitzen auf über 1000 °C',
+      'Ladungen lassen sich nicht trennen'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Reibung und Influenz sind die typischen Verfahren zur Ladungstrennung.',
+    hints: ['Denke an alltägliche Phänomene wie statische Aufladung.', 'Was passiert, wenn du mit einem Luftballon über deine Haare reibst?', 'Reibung und Influenz sind die Antwort.']
+  });
+
+  allQuestions.push({
+    type: 'mc', category: 'Plattenkondensator',
+    text: 'Welche Formel beschreibt die Feldstärke im Plattenkondensator?',
+    options: [
+      'E = U / d',
+      'E = Q / (4π·ε₀·r²)',
+      'E = m · a',
+      'E = ½ · m · v²'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Im Plattenkondensator gilt E = U / d (Spannung durch Plattenabstand).',
+    hints: ['Welche Größen bestimmen die Feldstärke zwischen zwei Platten?', 'E = U / d', 'Spannung geteilt durch Abstand.']
+  });
+
+  allQuestions.push({
+    type: 'mc', category: 'Konzeptwissen',
+    text: 'Wie wird ein elektrisches Feld nachgewiesen?',
+    options: [
+      'Durch die Kraftwirkung auf eine Probeladung',
+      'Durch Messung der Temperaturänderung',
+      'Durch Wiegen der geladenen Körper',
+      'Durch Beobachtung der Lichtbrechung'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Ein elektrisches Feld wird durch die Kraft auf eine Probeladung nachgewiesen.',
+    hints: ['Was spürt eine Ladung, wenn sie in ein Feld gebracht wird?', 'Eine Probeladung erfährt eine Kraft.', 'Kraftwirkung auf eine Probeladung ist der Nachweis.']
+  });
+
+  allQuestions.push({
+    type: 'mc', category: 'Konzeptwissen',
+    text: 'Was besagt der Satz von der Ladungserhaltung?',
+    options: [
+      'Ladung kann weder erzeugt noch vernichtet werden.',
+      'Jede Ladung hat eine endliche Lebensdauer.',
+      'Positive und negative Ladungen heben sich immer auf.',
+      'Ladungen können nur bei hohen Temperaturen existieren.'
+    ],
+    correct: 0,
+    explanation: 'Richtig! Die Gesamtladung in einem abgeschlossenen System bleibt immer erhalten.',
+    hints: ['Denke an Erhaltungssätze in der Physik.', 'Kann man Ladung aus dem Nichts erzeugen?', 'Nein – Ladung ist eine Erhaltungsgröße.']
+  });
+
+  // --- True/False Questions ---
+  allQuestions.push({
+    type: 'tf', category: 'Feldlinien-Konzepte',
+    text: '„Feldlinien können sich kreuzen."',
+    correct: false,
+    explanation: 'Falsch! Feldlinien durchsetzen sich niemals. An jedem Punkt gibt es nur eine Feldrichtung.',
+    solution: 'Die Aussage ist falsch. Feldlinien dürfen sich nicht kreuzen, da sonst an einem Punkt zwei verschiedene Feldrichtungen existieren würden.',
+    hints: ['Was würde es bedeuten, wenn sich Feldlinien kreuzen?', 'Am Kreuzungspunkt gäbe es zwei Richtungen – ist das physikalisch möglich?', 'Nein, an jedem Punkt gibt es genau eine Feldrichtung.']
+  });
+
+  allQuestions.push({
+    type: 'tf', category: 'Plattenkondensator',
+    text: '„Im homogenen Feld ist die Beschleunigung einer geladenen Teilchens konstant."',
+    correct: true,
+    explanation: 'Richtig! Im homogenen Feld gilt: E = const → F = const → a = const (gleichmäßig beschleunigte Bewegung).',
+    hints: ['Was gilt im homogenen Feld für die Feldstärke?', 'E = const → F = E·Q = const', 'Konstante Kraft → konstante Beschleunigung (F = m·a).']
+  });
+
+  allQuestions.push({
+    type: 'tf', category: 'Konzeptwissen',
+    text: '„Die elektrische Feldstärke wird in Ampere gemessen."',
+    correct: false,
+    explanation: 'Falsch! Die Einheit der elektrischen Feldstärke ist N/C oder V/m.',
+    solution: 'Die Aussage ist falsch. Die Einheit der Feldstärke ist N/C (Newton pro Coulomb) oder äquivalent V/m (Volt pro Meter).',
+    hints: ['Was ist die Definition der Feldstärke?', 'E = F/Q – welche Einheit ergibt sich?', 'N/C oder V/m ist die korrekte Einheit.']
+  });
+
+  allQuestions.push({
+    type: 'tf', category: 'Feldlinien-Konzepte',
+    text: '„Feldlinien stehen senkrecht auf Leiteroberflächen."',
+    correct: true,
+    explanation: 'Richtig! Feldlinien treffen immer senkrecht auf Leiteroberflächen.',
+    hints: ['Denke an die Oberfläche eines geladenen Metalles.', 'Gibt es eine tangentiale Komponente auf einer Leiteroberfläche?', 'Nein – die Feldlinien stehen senkrecht.']
+  });
+
+  allQuestions.push({
+    type: 'tf', category: 'Konzeptwissen',
+    text: '„Bei der Influenz werden Ladungen erzeugt."',
+    correct: false,
+    explanation: 'Falsch! Bei der Influenz werden vorhandene Ladungen nur verschoben (getrennt), nicht erzeugt.',
+    solution: 'Die Aussage ist falsch. Influenz beschreibt die Ladungsverschiebung in einem Leiter durch ein äußeres Feld, nicht die Erzeugung neuer Ladungen.',
+    hints: ['Was passiert bei Influenz genau?', 'Werden neue Ladungen gebildet oder bestehende verschoben?', 'Ladungen werden nur getrennt/verschoben – Ladungserhaltung!']
+  });
+
+  // --- Matching Questions ---
+  allQuestions.push({
+    type: 'matching', category: 'Feldlinien-Konzepte',
+    text: 'Ordne die Feldlinienbilder den passenden Ladungsanordnungen zu.',
+    targets: [
+      { label: svgPositivePoint() },
+      { label: svgNegativePoint() },
+      { label: svgDipole() },
+      { label: svgPlateCapacitor() }
+    ],
+    items: [
+      { label: 'Positive Punktladung', correctTarget: 0 },
+      { label: 'Negative Punktladung', correctTarget: 1 },
+      { label: 'Dipol (+/−)', correctTarget: 2 },
+      { label: 'Plattenkondensator', correctTarget: 3 }
+    ],
+    explanation: 'Alle richtig zugeordnet! Merke: Feldlinien gehen von + nach −, radial bei Punktladungen und parallel beim Kondensator.',
+    solution: 'Positive Punktladung: radiale Linien nach außen. Negative: radial nach innen. Dipol: Linien von + nach −. Kondensator: parallele Linien.',
+    hints: ['Schau dir die Pfeilrichtungen an – wohin zeigen sie?', 'Radial nach außen = positive Ladung, nach innen = negative Ladung.', 'Parallele Linien = Plattenkondensator, gebogene Linien zwischen +/− = Dipol.']
+  });
+
+  allQuestions.push({
+    type: 'matching', category: 'Konzeptwissen',
+    text: 'Ordne die Formeln ihrer Bedeutung zu.',
+    targets: [
+      { label: 'Feldstärke im Kondensator' },
+      { label: 'Coulombsches Gesetz' },
+      { label: 'Arbeit im E-Feld' },
+      { label: 'Feldstärke (allgemein)' }
+    ],
+    items: [
+      { label: 'E = U / d', correctTarget: 0 },
+      { label: 'F = (1/(4π·ε₀))·Q₁Q₂/r²', correctTarget: 1 },
+      { label: 'W = Q · U', correctTarget: 2 },
+      { label: 'E = F / Q', correctTarget: 3 }
+    ],
+    explanation: 'Perfekt! Du kennst die wichtigsten Formeln zum elektrischen Feld.',
+    solution: 'E = U/d → Kondensator, F = ...Q₁Q₂/r² → Coulomb, W = Q·U → Arbeit, E = F/Q → allgemeine Definition.',
+    hints: ['Welche Formel enthält den Plattenabstand d?', 'Das Coulombsche Gesetz enthält zwei Ladungen und den Abstand r.', 'E = U/d → Kondensator, W = Q·U → Arbeit, E = F/Q → Definition, Rest → Coulomb.']
+  });
+
+  // Shuffle and pick the configured number
+  const picked = shuffle(allQuestions).slice(0, SETTINGS.phase1Count);
+  return picked;
+}
+
+// ===== PHASE 2: CALCULATION QUESTIONS =====
+function generatePhase2Questions() {
+  const allTypes = [];
+
+  // Type 1: Elementarladung – Anzahl berechnen (N = Q / e)
+  allTypes.push(() => {
+    const Q_nC = randInt(1, 50); // nC
+    const Q = Q_nC * 1e-9;
+    const e = 1.602e-19;
+    const N = Q / e;
+    return {
+      type: 'numeric', category: 'Elementarladung',
+      text: `Ein Körper trägt die Ladung Q = ${Q_nC} nC. Berechne die Anzahl N der überschüssigen Elementarladungen.`,
+      answer: sigFigs(N, 4), unit: '',
+      explanation: `Richtig! N = Q / e = ${Q} C / ${e} C ≈ ${formatSci(N)}`,
+      solution: `Q = ${Q_nC} nC = ${Q} C. N = Q / e = ${Q} / 1,602 × 10⁻¹⁹ ≈ ${formatSci(N)}`,
+      hints: ['Welcher Zusammenhang besteht zwischen Ladung Q und Elementarladung e?', 'Q = N · e → N = Q / e', `N = ${Q} / 1,602 × 10⁻¹⁹ ≈ ${formatSci(N)}`]
+    };
+  });
+
+  // Type 2: Ladung aus Strom und Zeit (Q = I · t)
+  allTypes.push(() => {
+    const I_mA = randStep(100, 900, 100); // mA
+    const t_s = randStep(10, 120, 10); // s
+    const I = I_mA / 1000;
+    const Q = I * t_s;
+    return {
+      type: 'numeric', category: 'Elektrische Ladung',
+      text: `Durch einen Leiter fließt ein Strom von I = ${I_mA} mA für t = ${t_s} s. Berechne die transportierte Ladung Q.`,
+      answer: sigFigs(Q, 4), unit: 'C',
+      explanation: `Richtig! Q = I · t = ${I} A · ${t_s} s = ${sigFigs(Q, 4)} C`,
+      solution: `I = ${I_mA} mA = ${I} A. Q = I · t = ${I} · ${t_s} = ${sigFigs(Q, 4)} C`,
+      hints: ['Welche Formel verbindet Strom, Ladung und Zeit?', 'I = Q / t → Q = I · t. Achte auf die Einheit von I!', `I = ${I} A. Q = ${I} · ${t_s} = ${sigFigs(Q, 4)} C`]
+    };
+  });
+
+  // Type 3: Kraft auf Ladung im Feld (Fc = E · Q)
+  allTypes.push(() => {
+    const E = randStep(500, 5000, 500); // V/m
+    const Q_uC = randInt(1, 20); // μC
+    const Q = Q_uC * 1e-6;
+    const F = E * Q;
+    return {
+      type: 'numeric', category: 'Elektrische Feldstärke',
+      text: `Ein geladener Körper mit Q = ${Q_uC} μC befindet sich in einem elektrischen Feld der Stärke E = ${E} V/m. Berechne die auf ihn wirkende Kraft Fc.`,
+      answer: sigFigs(F, 4), unit: 'N',
+      explanation: `Richtig! Fc = E · Q = ${E} · ${Q} = ${sigFigs(F, 4)} N`,
+      solution: `Q = ${Q_uC} μC = ${Q} C. Fc = E · Q = ${E} · ${Q} = ${sigFigs(F, 4)} N`,
+      hints: ['Was ist die Definition der Feldstärke?', 'E = Fc / Q → Fc = E · Q. Einheiten: μC → C!', `Fc = ${E} · ${Q} = ${sigFigs(F, 4)} N`]
+    };
+  });
+
+  // Type 4: Arbeit im E-Feld – Spannung berechnen (U = W / Q)
+  allTypes.push(() => {
+    const W_mJ = randStep(50, 500, 50); // mJ
+    const W = W_mJ * 1e-3; // J
+    const Q_uC = randInt(1, 20); // μC
+    const Q = Q_uC * 1e-6;
+    const U = W / Q;
+    return {
+      type: 'numeric', category: 'Arbeit im E-Feld',
+      text: `Beim Verschieben einer Ladung Q = ${Q_uC} μC wird die Arbeit W = ${W_mJ} mJ verrichtet. Berechne die Spannung U.`,
+      answer: sigFigs(U, 4), unit: 'V',
+      explanation: `Richtig! U = W / Q = ${W} J / ${Q} C = ${sigFigs(U, 4)} V`,
+      solution: `W = ${W_mJ} mJ = ${W} J, Q = ${Q_uC} μC = ${Q} C. U = W / Q = ${W} / ${Q} = ${sigFigs(U, 4)} V`,
+      hints: ['Welcher Zusammenhang besteht zwischen Arbeit, Ladung und Spannung?', 'W = Q · U → U = W / Q. Einheiten umrechnen!', `U = ${W} / ${Q} = ${sigFigs(U, 4)} V`]
+    };
+  });
+
+  // Type 5: Coulomb-Kraft (Fc = k · Q1·Q2 / r²)
+  allTypes.push(() => {
+    const Q1_uC = randInt(1, 20);
+    const Q2_uC = randInt(1, 20);
+    const r_cm = randStep(5, 50, 5);
+    const Q1 = Q1_uC * 1e-6, Q2 = Q2_uC * 1e-6, r = r_cm / 100;
+    const F = K_COULOMB * Q1 * Q2 / (r * r);
+    return {
+      type: 'numeric', category: 'Coulomb-Berechnung',
+      text: `Zwei Punktladungen Q₁ = ${Q1_uC} μC und Q₂ = ${Q2_uC} μC sind r = ${r_cm} cm voneinander entfernt (in Luft). Berechne die Coulomb-Kraft Fc.`,
+      answer: sigFigs(F, 4), unit: 'N',
+      explanation: `Richtig! Fc ≈ ${formatSci(F)} N`,
+      solution: `Q₁ = ${Q1} C, Q₂ = ${Q2} C, r = ${r} m. Fc = k · Q₁·Q₂ / r² ≈ ${formatSci(F)} N`,
+      hints: ['Welche Formel beschreibt die Kraft zwischen zwei Punktladungen?', 'Coulombsches Gesetz: Fc = k·Q₁·Q₂/r². Einheiten: μC → C, cm → m!', `Fc = 8,99×10⁹ · ${Q1}·${Q2} / ${r}² ≈ ${formatSci(F)} N`]
+    };
+  });
+
+  // Type 6: Feldstärke einer Punktladung (E = k · Q / r²)
+  allTypes.push(() => {
+    const Q_nC = randInt(1, 50);
+    const r_cm = randStep(5, 30, 5);
+    const Q = Q_nC * 1e-9, r = r_cm / 100;
+    const E = K_COULOMB * Q / (r * r);
+    return {
+      type: 'numeric', category: 'Feldstärke Punktladung',
+      text: `Berechne die elektrische Feldstärke E im Abstand r = ${r_cm} cm von einer Punktladung Q = ${Q_nC} nC (in Luft).`,
+      answer: sigFigs(E, 4), unit: 'V/m',
+      explanation: `Richtig! E ≈ ${formatSci(E)} V/m`,
+      solution: `Q = ${Q} C, r = ${r} m. E = k · Q / r² ≈ ${formatSci(E)} V/m`,
+      hints: ['Welche Formel gibt die Feldstärke einer Punktladung?', 'E = Q / (4π·ε₀·r²). Einheiten: nC → C, cm → m!', `E = 8,99×10⁹ · ${Q} / ${r}² ≈ ${formatSci(E)} V/m`]
+    };
+  });
+
+  const questions = [];
+  const count = SETTINGS.phase2Count;
+  const shuffledTypes = shuffle([...Array(allTypes.length).keys()]);
+  for (let i = 0; i < Math.min(count, allTypes.length); i++) {
+    questions.push(allTypes[shuffledTypes[i]]());
+  }
+  while (questions.length < count) {
+    questions.push(allTypes[randInt(0, allTypes.length - 1)]());
+  }
+  return shuffle(questions);
+}
+
+// ===== PHASE 3: TRANSFER QUESTIONS =====
+function generatePhase3Questions() {
+  const pool = [
+    {
+      type: 'mc', category: 'Coulomb-Berechnung',
+      text: 'Die Kraft zwischen zwei Punktladungen beträgt F. Der Abstand wird verdoppelt. Wie groß ist die Kraft jetzt?',
+      options: ['F/4', 'F/2', '2F', '4F'], correct: 0,
+      explanation: 'Richtig! Wegen F ~ 1/r² führt die Verdopplung des Abstands zu F/4.',
+      hints: ['Wie hängt die Coulomb-Kraft vom Abstand ab?', 'F ~ 1/r². Was passiert bei r → 2r?', 'F_neu = F/(2²) = F/4']
+    },
+    {
+      type: 'mc', category: 'Feldlinien-Konzepte',
+      text: 'Eine positive Ladung wird im homogenen Feld losgelassen. In welche Richtung bewegt sie sich?',
+      options: ['In Feldlinienrichtung (von + nach −)', 'Entgegen der Feldlinienrichtung', 'Senkrecht zu den Feldlinien', 'Sie bleibt in Ruhe'],
+      correct: 0,
+      explanation: 'Richtig! Positive Ladungen bewegen sich in Feldlinienrichtung.',
+      hints: ['Was zeigen Feldlinien an?', 'Die Richtung der Kraft auf eine positive Probeladung.', 'Positive Ladung → Kraft in Feldlinienrichtung → Bewegung von + nach −.']
+    },
+    {
+      type: 'mc', category: 'Plattenkondensator',
+      text: 'Der Plattenabstand eines Kondensators wird halbiert, die Spannung bleibt gleich. Was passiert mit der Feldstärke?',
+      options: ['Sie verdoppelt sich', 'Sie halbiert sich', 'Sie bleibt gleich', 'Sie vervierfacht sich'],
+      correct: 0,
+      explanation: 'Richtig! E = U/d. Bei halbem d verdoppelt sich E.',
+      hints: ['Welche Formel gilt im Plattenkondensator?', 'E = U/d. Was passiert, wenn d → d/2?', 'E_neu = U/(d/2) = 2·U/d = 2·E']
+    },
+    {
+      type: 'mc', category: 'Feldlinien-Konzepte',
+      text: 'Welches Feldlinienbild zeigt zwei gleichnamige (positive) Ladungen?',
+      options: [
+        'Feldlinien gehen von beiden Ladungen nach außen und stoßen sich in der Mitte ab',
+        'Feldlinien verlaufen geradlinig von einer Ladung zur anderen',
+        'Parallele Feldlinien zwischen den Ladungen',
+        'Alle Feldlinien zeigen nach innen'
+      ], correct: 0,
+      explanation: 'Richtig! Gleichnamige Ladungen stoßen sich ab – die Feldlinien gehen von beiden nach außen.',
+      hints: ['Was passiert zwischen gleichnamigen Ladungen?', 'Sie stoßen sich ab.', 'Beide positiv → Feldlinien gehen von beiden nach außen, keine Verbindung.']
+    },
+    {
+      type: 'mc', category: 'Coulomb-Berechnung',
+      text: 'Die Ladung Q₁ wird verdreifacht. Was passiert mit der Coulomb-Kraft?',
+      options: ['Sie verdreifacht sich', 'Sie verneunfacht sich', 'Sie bleibt gleich', 'Sie wird gedrittelt'],
+      correct: 0,
+      explanation: 'Richtig! F ~ Q₁, also verdreifacht sich die Kraft.',
+      hints: ['Wie hängt die Coulomb-Kraft von Q₁ ab?', 'F ~ Q₁ (proportional).', 'Q₁ → 3·Q₁ → F_neu = 3·F']
+    },
+    {
+      type: 'mc', category: 'Coulomb-Berechnung',
+      text: 'Was passiert mit der Coulomb-Kraft, wenn beide Ladungen verdoppelt werden?',
+      options: ['Sie vervierfacht sich', 'Sie verdoppelt sich', 'Sie bleibt gleich', 'Sie wird halbiert'],
+      correct: 0,
+      explanation: 'Richtig! F ~ Q₁·Q₂. Verdopplung beider → 2·2 = 4-fache Kraft.',
+      hints: ['Wie hängt F von beiden Ladungen ab?', 'F ~ Q₁ · Q₂.', '2Q₁ · 2Q₂ = 4·Q₁·Q₂ → F vervierfacht sich.']
+    },
+    {
+      type: 'mc', category: 'Konzeptwissen',
+      text: 'In welcher Einheit wird die elektrische Feldstärke gemessen?',
+      options: ['N/C oder V/m', 'Ampere (A)', 'Watt (W)', 'Coulomb (C)'],
+      correct: 0,
+      explanation: 'Richtig! E = F/Q → [E] = N/C. Außerdem E = U/d → [E] = V/m.',
+      hints: ['Was ist die Definition der Feldstärke?', 'E = F/Q oder E = U/d.', 'N/C = V/m ist die Einheit.']
+    },
+    {
+      type: 'mc', category: 'Plattenkondensator',
+      text: 'Ein Elektron befindet sich im homogenen Feld. Wie verläuft seine Bewegung?',
+      options: [
+        'Gleichmäßig beschleunigt entgegen der Feldrichtung',
+        'Gleichmäßig beschleunigt in Feldrichtung',
+        'Ungleichmäßig beschleunigt in Feldrichtung',
+        'Es bleibt in Ruhe'
+      ], correct: 0,
+      explanation: 'Richtig! Das Elektron ist negativ geladen → Kraft entgegen der Feldrichtung. Im homogenen Feld: a = const.',
+      hints: ['Welche Ladung hat ein Elektron?', 'Negativ! Also wirkt die Kraft entgegen der Feldrichtung.', 'Homogenes Feld → F = const → a = const → gleichmäßig beschleunigt, entgegen E.']
+    },
+    {
+      type: 'mc', category: 'Konzeptwissen',
+      text: 'Was beschreibt die Spannung U physikalisch?',
+      options: [
+        'Die Arbeit pro Ladung (Antrieb auf Ladungsträger)',
+        'Die Kraft pro Fläche',
+        'Die Ladung pro Zeit',
+        'Die Energie pro Masse'
+      ], correct: 0,
+      explanation: 'Richtig! U = W/Q – Spannung ist Arbeit pro Ladung.',
+      hints: ['Welche Formel verbindet U, W und Q?', 'U = W / Q.', 'Spannung = Arbeit pro Ladung = Maß für den Antrieb auf Ladungsträger.']
+    },
+    {
+      type: 'mc', category: 'Konzeptwissen',
+      text: 'Die Permittivitätszahl ε_r von Luft ist ungefähr ...',
+      options: ['1', '0', '8,85 × 10⁻¹²', '100'],
+      correct: 0,
+      explanation: 'Richtig! Für Luft und Vakuum gilt ε_r ≈ 1.',
+      hints: ['ε_r beschreibt den Einfluss des Mediums.', 'Was ist der Referenzwert (Vakuum)?', 'Für Vakuum und Luft ist ε_r ≈ 1.']
+    },
+    {
+      type: 'mc', category: 'Transferdenken',
+      text: 'Der Abstand zwischen zwei Punktladungen wird auf ein Drittel verringert. Wie ändert sich die Coulomb-Kraft?',
+      options: ['Sie verneunfacht sich', 'Sie verdreifacht sich', 'Sie wird gedrittelt', 'Sie wird geviertelt'],
+      correct: 0,
+      explanation: 'Richtig! F ~ 1/r². Bei r → r/3: F_neu = F·(1/(1/3))² = F·9.',
+      hints: ['F ~ 1/r². Was passiert bei r/3?', '(1/(r/3))² = (3/r)² = 9/r²', 'Die Kraft wird 9-mal so groß.']
+    },
+    {
+      type: 'mc', category: 'Transferdenken',
+      text: 'Im Plattenkondensator wird die Spannung verdoppelt und der Abstand halbiert. Was passiert mit E?',
+      options: ['E wird vervierfacht', 'E wird verdoppelt', 'E bleibt gleich', 'E wird halbiert'],
+      correct: 0,
+      explanation: 'Richtig! E = U/d. Bei 2U und d/2: E_neu = 2U/(d/2) = 4U/d = 4E.',
+      hints: ['E = U/d. Was passiert bei doppelter Spannung?', 'Und bei halbem Abstand?', 'E = 2U/(d/2) = 4·(U/d) = 4E.']
+    }
+  ];
+
+  return shuffle(pool).slice(0, SETTINGS.phase3Count);
+}
+
+// ===== PHASE 4: DIFFERENTIATION =====
+function generatePhase4Questions() {
+  // Check if student needs standard path (had errors) or expert path
+  const hadErrors = STATE.wrongQuestions.length > 0;
+  const useExpert = !hadErrors && SETTINGS.expertPath;
+
+  if (useExpert) {
+    return generateExpertQuestions();
+  } else {
+    return generateRepeatQuestions();
+  }
+}
+
+function generateRepeatQuestions() {
+  if (STATE.wrongQuestions.length === 0) {
+    // No errors – show a congratulatory message question
+    return [{
+      type: 'mc', category: 'Transferdenken',
+      text: 'Hervorragend! Du hast alle Aufgaben fehlerfrei gelöst. Hier eine Bonusfrage: Was gilt für die Feldlinien auf einer Leiteroberfläche?',
+      options: ['Sie stehen senkrecht auf der Oberfläche', 'Sie verlaufen parallel zur Oberfläche', 'Sie existieren nicht auf der Oberfläche', 'Sie zeigen immer nach oben'],
+      correct: 0, explanation: 'Richtig! Feldlinien stehen immer senkrecht auf Leiteroberflächen.',
+      hints: ['Denke an die Eigenschaft von Leiteroberflächen im E-Feld.', 'Tangentiale Komponenten?', 'Keine tangentiale Komponente → senkrecht.']
+    }];
+  }
+  const questions = [];
+  STATE.wrongQuestions.forEach(wq => {
+    const orig = wq.question;
+    if (orig.type === 'numeric') {
+      // Re-generate same type with new values
+      const newQ = regenerateNumericQuestion(orig);
+      if (newQ) {
+        newQ._isRepeat = true;
+        questions.push(newQ);
+      } else {
+        questions.push({ ...orig, _isRepeat: true });
+      }
+    } else {
+      // For concept questions, use same question
+      questions.push({ ...orig, _isRepeat: true });
+    }
+  });
+  // Limit to reasonable number
+  return questions.slice(0, 8);
+}
+
+function regenerateNumericQuestion(orig) {
+  // Re-generate same category with new random values
+  if (orig.category === 'Elementarladung') {
+    const Q_nC = randInt(1, 50);
+    const Q = Q_nC * 1e-9, e = 1.602e-19, N = Q / e;
+    return {
+      type: 'numeric', category: 'Elementarladung',
+      text: `Ein Körper trägt die Ladung Q = ${Q_nC} nC. Berechne die Anzahl N der Elementarladungen.`,
+      answer: sigFigs(N, 4), unit: '',
+      explanation: `Richtig! N ≈ ${formatSci(N)}`,
+      solution: `N = Q / e = ${Q} / 1,602×10⁻¹⁹ ≈ ${formatSci(N)}`,
+      hints: orig.hints ? [...orig.hints] : []
+    };
+  }
+  if (orig.category === 'Elektrische Ladung') {
+    const I_mA = randStep(100, 900, 100), t_s = randStep(10, 120, 10);
+    const I = I_mA / 1000, Q = I * t_s;
+    return {
+      type: 'numeric', category: 'Elektrische Ladung',
+      text: `Strom I = ${I_mA} mA fließt für t = ${t_s} s. Berechne die Ladung Q.`,
+      answer: sigFigs(Q, 4), unit: 'C',
+      explanation: `Richtig! Q = ${sigFigs(Q, 4)} C`,
+      solution: `Q = I · t = ${I} · ${t_s} = ${sigFigs(Q, 4)} C`,
+      hints: orig.hints ? [...orig.hints] : []
+    };
+  }
+  if (orig.category === 'Elektrische Feldstärke') {
+    const E = randStep(500, 5000, 500), Q_uC = randInt(1, 20);
+    const Q = Q_uC * 1e-6, F = E * Q;
+    return {
+      type: 'numeric', category: 'Elektrische Feldstärke',
+      text: `Ladung Q = ${Q_uC} μC im Feld E = ${E} V/m. Berechne die Kraft Fc.`,
+      answer: sigFigs(F, 4), unit: 'N',
+      explanation: `Richtig! Fc = ${sigFigs(F, 4)} N`,
+      solution: `Fc = E · Q = ${E} · ${Q} = ${sigFigs(F, 4)} N`,
+      hints: orig.hints ? [...orig.hints] : []
+    };
+  }
+  if (orig.category === 'Arbeit im E-Feld') {
+    const W_mJ = randStep(50, 500, 50), Q_uC = randInt(1, 20);
+    const W = W_mJ * 1e-3, Q = Q_uC * 1e-6, U = W / Q;
+    return {
+      type: 'numeric', category: 'Arbeit im E-Feld',
+      text: `Ladung Q = ${Q_uC} μC, Arbeit W = ${W_mJ} mJ. Berechne die Spannung U.`,
+      answer: sigFigs(U, 4), unit: 'V',
+      explanation: `Richtig! U = ${sigFigs(U, 4)} V`,
+      solution: `U = W / Q = ${W} / ${Q} = ${sigFigs(U, 4)} V`,
+      hints: orig.hints ? [...orig.hints] : []
+    };
+  }
+  if (orig.category === 'Coulomb-Berechnung') {
+    const Q1_uC = randInt(1, 20), Q2_uC = randInt(1, 20), r_cm = randStep(5, 50, 5);
+    const Q1 = Q1_uC * 1e-6, Q2 = Q2_uC * 1e-6, r = r_cm / 100;
+    const F = K_COULOMB * Q1 * Q2 / (r * r);
+    return {
+      type: 'numeric', category: 'Coulomb-Berechnung',
+      text: `Q₁ = ${Q1_uC} μC, Q₂ = ${Q2_uC} μC, r = ${r_cm} cm. Berechne die Coulomb-Kraft Fc.`,
+      answer: sigFigs(F, 4), unit: 'N',
+      explanation: `Richtig! Fc ≈ ${formatSci(F)} N`,
+      solution: `Fc = k · Q₁·Q₂ / r² ≈ ${formatSci(F)} N`,
+      hints: orig.hints ? [...orig.hints] : []
+    };
+  }
+  if (orig.category === 'Feldstärke Punktladung') {
+    const Q_nC = randInt(1, 50), r_cm = randStep(5, 30, 5);
+    const Q = Q_nC * 1e-9, r = r_cm / 100;
+    const E = K_COULOMB * Q / (r * r);
+    return {
+      type: 'numeric', category: 'Feldstärke Punktladung',
+      text: `Q = ${Q_nC} nC, r = ${r_cm} cm. Berechne die Feldstärke E.`,
+      answer: sigFigs(E, 4), unit: 'V/m',
+      explanation: `Richtig! E ≈ ${formatSci(E)} V/m`,
+      solution: `E = k · Q / r² ≈ ${formatSci(E)} V/m`,
+      hints: orig.hints ? [...orig.hints] : []
+    };
+  }
+  return null;
+}
+
+function generateExpertQuestions() {
+  const questions = [];
+
+  // 1. Kombination: Coulomb-Kraft + Feldstärke
+  const Q1_uC = randInt(2, 15), Q2_uC = randInt(2, 15), r_cm = randStep(10, 40, 5);
+  const Q1 = Q1_uC * 1e-6, Q2 = Q2_uC * 1e-6, r = r_cm / 100;
+  const F_comb = K_COULOMB * Q1 * Q2 / (r * r);
+  const E_comb = K_COULOMB * Q1 / (r * r);
+  questions.push({
+    type: 'numeric', category: 'Transferdenken',
+    text: `Zwei Ladungen Q₁ = ${Q1_uC} μC und Q₂ = ${Q2_uC} μC im Abstand r = ${r_cm} cm. Berechne die Feldstärke E am Ort von Q₂ (verursacht durch Q₁).`,
+    answer: sigFigs(E_comb, 4), unit: 'V/m', hint_formula: 'E = Q₁ / (4π·ε₀·r²)',
+    explanation: `Richtig! E ≈ ${formatSci(E_comb)} V/m`,
+    solution: `E = k · Q₁ / r² = 8,99×10⁹ · ${Q1} / ${r}² ≈ ${formatSci(E_comb)} V/m`,
+    hints: ['Die Feldstärke am Ort von Q₂ wird nur durch Q₁ bestimmt.', 'E = k · Q₁ / r²', `E ≈ ${formatSci(E_comb)} V/m`]
+  });
+
+  // 2. Umkehr: Abstand aus Kraft berechnen
+  const Qa = randInt(1, 10) * 1e-6, Qb = randInt(1, 10) * 1e-6;
+  const r_target = randStep(5, 30, 5) / 100;
+  const F_target = K_COULOMB * Qa * Qb / (r_target * r_target);
+  questions.push({
+    type: 'numeric', category: 'Transferdenken',
+    text: `Zwei Ladungen (Q₁ = ${(Qa*1e6).toFixed(0)} μC, Q₂ = ${(Qb*1e6).toFixed(0)} μC) üben die Kraft F = ${formatSci(F_target)} N aufeinander aus. Berechne den Abstand r.`,
+    answer: sigFigs(r_target, 4), unit: 'm', hint_formula: 'r = √(k · Q₁·Q₂ / F)',
+    explanation: `Richtig! r = ${sigFigs(r_target, 4)} m`,
+    solution: `r = √(k · Q₁·Q₂ / F) = √(${formatSci(K_COULOMB * Qa * Qb)} / ${formatSci(F_target)}) = ${sigFigs(r_target, 4)} m`,
+    hints: ['Stelle das Coulombsche Gesetz nach r um.', 'r² = k·Q₁·Q₂/F → r = √(k·Q₁·Q₂/F)', `r = ${sigFigs(r_target, 4)} m`]
+  });
+
+  // 3. Vergleich: Kraft bei r vs 3r
+  questions.push({
+    type: 'mc', category: 'Transferdenken',
+    text: 'Vergleiche die Coulomb-Kraft bei Abstand r mit der bei Abstand 3r. Um welchen Faktor ändert sie sich?',
+    options: ['Die Kraft wird 9-mal kleiner (Faktor 1/9)', 'Die Kraft wird 3-mal kleiner', 'Die Kraft wird 9-mal größer', 'Die Kraft bleibt gleich'],
+    correct: 0,
+    explanation: 'Richtig! F ~ 1/r². Bei 3r: F_neu = F/(3²) = F/9.',
+    hints: ['F ~ 1/r².', 'r → 3r: (3r)² = 9r²', 'F_neu = F/9, also 9-mal kleiner.']
+  });
+
+  // 4. Konzeptuelle Transferfrage
+  questions.push({
+    type: 'mc', category: 'Transferdenken',
+    text: 'Warum ist die Bewegung einer Ladung im inhomogenen Feld ungleichmäßig beschleunigt?',
+    options: [
+      'Weil die Feldstärke ortsabhängig ist und damit die Kraft variiert.',
+      'Weil die Ladung im Feld ihre Masse ändert.',
+      'Weil die Ladung nach einiger Zeit neutral wird.',
+      'Weil das Feld nur in eine Richtung wirkt.'
+    ], correct: 0,
+    explanation: 'Richtig! Im inhomogenen Feld gilt E ≠ const → F ≠ const → a ≠ const.',
+    hints: ['Was ist im inhomogenen Feld anders als im homogenen?', 'E ≠ const → F = E·Q ≠ const', 'Variierende Kraft → variierende Beschleunigung.']
+  });
+
+  return questions;
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  initBackground();
+  // Enter key starts game
+  document.getElementById('player-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') startGame();
+  });
+});
+</script>
+</body>
+</html>
